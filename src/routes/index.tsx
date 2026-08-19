@@ -1,52 +1,31 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Header } from "@/components/site/Header";
-import { Hero } from "@/components/site/Hero";
-import { TrustStrip } from "@/components/site/TrustStrip";
-import { BookingWidget } from "@/components/site/BookingWidget";
-import { Areas } from "@/components/site/Areas";
-import { BeforeAfter } from "@/components/site/BeforeAfter";
-import { Reviews } from "@/components/site/Reviews";
-import { Footer } from "@/components/site/Footer";
-import { StickyBar } from "@/components/site/StickyBar";
+import { FullBleedLayout } from "@/components/layout/AppLayout";
+import { Hero } from "@/components/marketing/Hero";
+import { TrustStrip } from "@/components/marketing/TrustStrip";
+import { BookingWidget } from "@/components/booking/BookingWidget";
+import { ServiceStrip } from "@/components/marketing/ServiceStrip";
+import { Areas } from "@/components/marketing/Areas";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
-    service: typeof search['service'] === "string" ? (search['service'] as string) : undefined,
+    service: typeof search.service === "string" ? search.service : undefined,
+    book: search.book === true || search.book === "1" ? true : undefined,
   }),
-  head: () => ({
-    meta: [
-      { title: "2-Hour Home Cleaning at ₹399 in Bhopal | SparkleHome" },
-      {
-        name: "description",
-        content:
-          "Book verified home cleaners in Bhopal for ₹399. 2-hour housekeeping, car wash and deep cleaning with UPI payment and live order tracking.",
-      },
-      { property: "og:title", content: "2-Hour Home Cleaning at ₹399 in Bhopal | SparkleHome" },
-      {
-        property: "og:description",
-        content:
-          "Verified & trained staff, transparent pricing, UPI payment and live tracking across MP Nagar, Arera Colony, Kolar and Indrapuri.",
-      },
-    ],
-  }),
-  component: Index,
+  component: HomePage,
 });
 
-function Index() {
+function HomePage() {
+  // Optional query params: ?service=<id>&book=1 (e.g. from a service page's
+  // "Book this service" link).
   const { service } = Route.useSearch();
+
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main>
-        <Hero />
-        <TrustStrip />
-        <BookingWidget preselectServiceId={service} />
-        <Areas />
-        <BeforeAfter />
-        <Reviews />
-      </main>
-      <Footer />
-      <StickyBar />
-    </div>
+    <FullBleedLayout>
+      <Hero />
+      <TrustStrip />
+      <BookingWidget preselectServiceId={service} />
+      <ServiceStrip />
+      <Areas />
+    </FullBleedLayout>
   );
 }
