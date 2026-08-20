@@ -1,26 +1,33 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Check, ChevronLeft, ChevronRight, Clock, Loader2, PhoneCall, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchServices, fetchServiceAreas } from "@/lib/services-api";
 import { createOrder } from "@/lib/orders-api";
 import { TIME_SLOTS } from "@/lib/config";
-import { todayISO } from "@/lib/format";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Spinner } from "@/components/ui";
+import { todayISO, inr, durationLabel } from "@/lib/format";
+import { Button, Input, Label } from "@/components/ui";
+import { serviceImage } from "@/lib/service-images";
 
-const STEPS = ["Service", "Schedule", "Address", "Review"];
+const STEPS = ["Service", "Schedule", "Address", "Review", "Confirm"];
+
+const CATEGORY_LABEL: Record<string, string> = {
+  express: "Popular Express",
+  packages: "Full Home Packages",
+  addons: "Specialized Add-ons",
+};
 
 export function BookingWidget({ preselectServiceId }: { preselectServiceId?: string }) {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
   const { data: services = [] } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
-  // fetchServiceAreas is kept available for the address step's area selector.
-  void useQuery({ queryKey: ["service-areas"], queryFn: fetchServiceAreas });
+  const { data: areas = [] } = useQuery({ queryKey: ["service-areas"], queryFn: fetchServiceAreas });
 
   const liveServices = useMemo(() => services.filter((s) => s.is_active), [services]);
-  const serviceOptions = useMemo(
-    () => [...new Set(liveServices.map((s) => s.category))],
+  const categoryOrder = useMemo(
+    () => ["express", "packages", "addons"].filter((c) => liveServices.some((s) => s.category === c)),
     [liveServices],
   );
 
@@ -32,6 +39,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   const [area, setArea] = useState("");
   const [pincode, setPincode] = useState("");
   const [floor, setFloor] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const service = liveServices.find((s) => s.id === serviceId);
 
@@ -39,6 +47,27 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
     mutationFn: createOrder,
     onSuccess: (order) => navigate({ to: "/orders/$orderId", params: { orderId: order.id } }),
   });
+
+  function canGoNext(): boolean {
+    if (step === 0) return Boolean(service);
+    if (step === 1) return Boolean(date && slot);
+    if (step === 2) {
+      const e: Record<string, string> = {};
+      if (!street.trim()) e.street = "Enter your house / street";
+      if (!area.trim()) e.area = "Enter your area";
+      if (!/^\d{6}$/.test(pincode)) e.pincode = "Enter a valid 6-digit pincode";
+      setErrors(e);
+      return Object.keys(e).length === 0;
+    }
+    return true;
+  }
+
+  function next() {
+    if (step < STEPS.length - 1 && canGoNext()) setStep((s) => s + 1);
+  }
+  function back() {
+    if (step > 0) setStep((s) => s - 1);
+  }
 
   function handleSubmit() {
     if (!service) return;
@@ -54,36 +83,42 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   }
 
   return (
-    <section id="book" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-12">
-      <Card className="overflow-hidden">
-        <CardHeader className="border-b border-border bg-secondary/50">
-          <CardTitle>Book a cleaning</CardTitle>
-          <ol className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-            {STEPS.map((s, i) => (
-              <li
-                key={s}
-                className={`rounded-full px-3 py-1 ${
-                  i === step
-                    ? "bg-primary text-primary-foreground"
-                    : i < step
-                      ? "bg-accent/20 text-accent"
-                      : "bg-background text-muted-foreground"
-                }`}
-              >
-                {i + 1}. {s}
-              </li>
-            ))}
+    <section id="book" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-12">
+      <div className="overflow-hidden rounded-[1.75rem] border border-border bg-white shadow-[var(--shadow-float)]">
+        {/* Header + steps */}
+        <div className="border-b border-border bg-secondary/50 px-5 py-5 md:px-8">
+          <h2 className="font-display text-xl font-bold md:text-2xl">Instant booking</h2>
+          <ol className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+            {STEPS.map((s, i) => {
+              const done = i < step;
+              const active = i === step;
+              return (
+                <li
+                  key={s}
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 transition ${
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : done
+                        ? "bg-accent-soft text-accent"
+                        : "bg-background text-muted-foreground"
+                  }`}
+                >
+                  {done && <Check className="h-3 w-3" />}
+                  {i + 1}. {s}
+                </li>
+              );
+            })}
           </ol>
-        </CardHeader>
+        </div>
 
-        <CardContent className="pt-5">
+        <div className="p-5 md:p-8">
           {!isAuthenticated ? (
-            <div className="py-8 text-center">
-              <p className="text-lg font-semibold">Log in to place an order</p>
+            <div className="py-10 text-center">
+              <p className="text-lg font-bold">Log in to place an order</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                Create an account so we can track your booking.
+                Create a free account so we can track your booking.
               </p>
-              <div className="mt-5 flex justify-center gap-3">
+              <div className="mt-6 flex justify-center gap-3">
                 <Button onClick={() => navigate({ to: "/login" })}>Log in</Button>
                 <Button variant="outline" onClick={() => navigate({ to: "/register" })}>
                   Create account
@@ -92,45 +127,72 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
             </div>
           ) : (
             <div className="space-y-6">
+              {/* STEP 1: Service */}
               {step === 0 && (
                 <div>
-                  <Label>Choose a service</Label>
-                  {serviceOptions.map((cat) => (
-                    <div key={cat} className="mt-2">
-                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                        {cat}
-                      </p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {liveServices
-                          .filter((s) => s.category === cat)
-                          .map((s) => (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => setServiceId(s.id)}
-                              className={`rounded-xl border p-3 text-left text-sm transition ${
-                                serviceId === s.id
-                                  ? "border-primary bg-primary/5"
-                                  : "border-border hover:border-primary/40"
-                              }`}
-                            >
-                              <span className="block font-bold">{s.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {s.duration_minutes / 60} hr · from ₹{s.base_price}
-                              </span>
-                            </button>
-                          ))}
+                  {categoryOrder.map((cat) => {
+                    const list = liveServices.filter((s) => s.category === cat);
+                    if (!list.length) return null;
+                    return (
+                      <div key={cat} className="mb-6 last:mb-0">
+                        <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                          {CATEGORY_LABEL[cat] ?? cat}
+                        </h3>
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                          {list.map((s) => {
+                            const selected = serviceId === s.id;
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => setServiceId(s.id)}
+                                className={`group overflow-hidden rounded-2xl border text-left transition ${
+                                  selected
+                                    ? "border-primary ring-2 ring-primary/20"
+                                    : "border-border hover:border-primary/40"
+                                }`}
+                              >
+                                <div className="relative h-28 w-full overflow-hidden">
+                                  <img
+                                    src={serviceImage(s.id)}
+                                    alt={s.name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                  {selected && (
+                                    <span className="absolute right-2 top-2 grid h-6 w-6 place-items-center rounded-full bg-accent text-white">
+                                      <Check className="h-4 w-4" />
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="p-3">
+                                  <p className="text-sm font-bold">{s.name}</p>
+                                  <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Clock className="h-3 w-3" /> {durationLabel(s.duration_minutes)} · from{" "}
+                                    {inr(s.base_price)}
+                                  </p>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
+              {/* STEP 2: Schedule */}
               {step === 1 && (
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="mx-auto grid max-w-2xl gap-5 sm:grid-cols-2">
                   <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input id="date" type="date" value={date} min={todayISO()} onChange={(e) => setDate(e.target.value)} />
+                    <Label htmlFor="date">Preferred date</Label>
+                    <Input
+                      id="date"
+                      type="date"
+                      value={date}
+                      min={todayISO()}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="slot">Time slot</Label>
@@ -141,77 +203,156 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                       className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
                     >
                       {TIME_SLOTS.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
                       ))}
                     </select>
                   </div>
-                </div>
-              )}
-
-              {step === 2 && (
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <Label htmlFor="street">House / street</Label>
-                    <Input id="street" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Plot 12, MP Nagar" />
-                  </div>
-                  <div>
-                    <Label htmlFor="area">Area</Label>
-                    <Input id="area" value={area} onChange={(e) => setArea(e.target.value)} placeholder="MP Nagar" />
-                  </div>
-                  <div>
-                    <Label htmlFor="pincode">Pincode</Label>
-                    <Input id="pincode" value={pincode} onChange={(e) => setPincode(e.target.value)} placeholder="462011" maxLength={6} />
-                  </div>
-                  <div>
-                    <Label htmlFor="floor">Floor (optional)</Label>
-                    <Input id="floor" value={floor} onChange={(e) => setFloor(e.target.value)} placeholder="2nd" />
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between border-b border-border pb-2">
-                    <span className="text-muted-foreground">Service</span>
-                    <span className="font-semibold">{service?.name}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-border pb-2">
-                    <span className="text-muted-foreground">Schedule</span>
-                    <span className="font-semibold">{date} · {slot}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Address</span>
-                    <span className="font-semibold text-right">{street}, {area}, {pincode}</span>
-                  </div>
-                  <p className="pt-2 text-xs text-muted-foreground">
-                    Final price is confirmed by our team on a call after we understand the work.
-                    You can pay online or by cash after the service.
+                  <p className="text-xs text-muted-foreground sm:col-span-2">
+                    We'll confirm availability when we call you. Most bookings are assigned within 15 minutes.
                   </p>
                 </div>
               )}
 
-              <div className="flex items-center justify-between border-t border-border pt-4">
-                <Button variant="ghost" disabled={step === 0} onClick={() => setStep((s) => s - 1)}>
-                  Back
+              {/* STEP 3: Address */}
+              {step === 2 && (
+                <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <Label htmlFor="street">House / street</Label>
+                    <Input
+                      id="street"
+                      value={street}
+                      onChange={(e) => setStreet(e.target.value)}
+                      placeholder="Plot 12, MP Nagar"
+                    />
+                    {errors.street && <p className="mt-1 text-xs text-destructive">{errors.street}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="area">Area</Label>
+                    <Input id="area" value={area} onChange={(e) => setArea(e.target.value)} placeholder="MP Nagar" />
+                    {errors.area && <p className="mt-1 text-xs text-destructive">{errors.area}</p>}
+                  </div>
+                  <div>
+                    <Label htmlFor="pincode">Pincode</Label>
+                    <Input
+                      id="pincode"
+                      value={pincode}
+                      onChange={(e) => setPincode(e.target.value)}
+                      placeholder="462011"
+                      maxLength={6}
+                    />
+                    {errors.pincode && <p className="mt-1 text-xs text-destructive">{errors.pincode}</p>}
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Label htmlFor="floor">Floor / landmark (optional)</Label>
+                    <Input
+                      id="floor"
+                      value={floor}
+                      onChange={(e) => setFloor(e.target.value)}
+                      placeholder="2nd floor, near rose mary school"
+                    />
+                  </div>
+                  {areas.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <Label>Serviced areas</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {areas
+                          .filter((a) => a.is_active)
+                          .map((a) => (
+                            <button
+                              key={a.id}
+                              type="button"
+                              onClick={() => {
+                                setArea(a.name);
+                                setPincode(a.pincode);
+                              }}
+                              className="rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary"
+                            >
+                              {a.name} · {a.pincode}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* STEP 4: Review */}
+              {step === 3 && (
+                <div className="mx-auto max-w-2xl space-y-3 text-sm">
+                  <div className="flex items-center justify-between border-b border-border pb-3">
+                    <span className="text-muted-foreground">Service</span>
+                    <span className="flex items-center gap-2 font-semibold">
+                      <img src={service ? serviceImage(service.id) : ""} alt="" className="h-8 w-8 rounded-md object-cover" />
+                      {service?.name}
+                    </span>
+                  </div>
+                  <div className="flex justify-between border-b border-border pb-3">
+                    <span className="text-muted-foreground">Schedule</span>
+                    <span className="font-semibold">{date} · {slot}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-border pb-3">
+                    <span className="text-muted-foreground">Duration</span>
+                    <span className="font-semibold">{service ? durationLabel(service.duration_minutes) : "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Address</span>
+                    <span className="max-w-[60%] text-right font-semibold">
+                      {street}, {area}, {pincode}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* STEP 5: Confirm (our model — no online payment) */}
+              {step === 4 && (
+                <div className="mx-auto max-w-2xl">
+                  <div className="rounded-2xl bg-primary-soft p-5 text-center">
+                    <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary text-white">
+                      <PhoneCall className="h-6 w-6" />
+                    </span>
+                    <h3 className="mt-3 font-display text-lg font-bold">Request received!</h3>
+                    <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+                      Our team will call you shortly to confirm the details and the final price.
+                      You can pay by <strong>UPI or cash after the work is done</strong> — no online
+                      payment needed.
+                    </p>
+                    <div className="mt-4 flex items-center justify-center gap-2 text-xs font-semibold text-primary">
+                      <ShieldCheck className="h-4 w-4" /> Free cancellation · Transparent pricing
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Nav buttons */}
+              <div className="flex items-center justify-between border-t border-border pt-5">
+                <Button variant="ghost" disabled={step === 0} onClick={back}>
+                  <ChevronLeft className="h-4 w-4" /> Back
                 </Button>
-                {step < 3 ? (
-                  <Button onClick={() => setStep((s) => s + 1)}>Continue</Button>
+                {step < STEPS.length - 1 ? (
+                  <Button onClick={next}>
+                    Continue <ChevronRight className="h-4 w-4" />
+                  </Button>
                 ) : (
                   <Button onClick={handleSubmit} disabled={createOrderMutation.isPending}>
-                    {createOrderMutation.isPending ? <Spinner /> : "Place order"}
+                    {createOrderMutation.isPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Confirm my booking"
+                    )}
                   </Button>
                 )}
               </div>
 
               {createOrderMutation.isError && (
-                <p className="text-sm text-destructive">
-                  Could not place order. Please try again.
-                </p>
+                <p className="text-sm text-destructive">Could not place the order. Please try again.</p>
               )}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </section>
   );
 }
+

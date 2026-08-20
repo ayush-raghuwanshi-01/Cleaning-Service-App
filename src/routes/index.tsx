@@ -5,6 +5,9 @@ import { TrustStrip } from "@/components/marketing/TrustStrip";
 import { BookingWidget } from "@/components/booking/BookingWidget";
 import { ServiceStrip } from "@/components/marketing/ServiceStrip";
 import { Areas } from "@/components/marketing/Areas";
+import { BeforeAfter } from "@/components/marketing/BeforeAfter";
+import { Reviews } from "@/components/marketing/Reviews";
+import { StickyBar } from "@/components/layout/StickyBar";
 
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -15,8 +18,6 @@ export const Route = createFileRoute("/")({
 });
 
 function HomePage() {
-  // Optional query params: ?service=<id>&book=1 (e.g. from a service page's
-  // "Book this service" link).
   const { service } = Route.useSearch();
 
   return (
@@ -26,6 +27,9 @@ function HomePage() {
       <BookingWidget preselectServiceId={service} />
       <ServiceStrip />
       <Areas />
+      <BeforeAfter />
+      <Reviews />
+      <StickyBar />
     </FullBleedLayout>
   );
 }
