@@ -152,11 +152,11 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <Label htmlFor="street">House / street</Label>
-                    <Input id="street" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="Plot 12, MP Nagar" />
+                    <Input id="street" value={street} onChange={(e) => setStreet(e.target.value)} placeholder="House number, street, building" />
                   </div>
                   <div>
                     <Label htmlFor="area">Area</Label>
-                    <Input id="area" value={area} onChange={(e) => setArea(e.target.value)} placeholder="MP Nagar" />
+                    <Input id="area" value={area} onChange={(e) => setArea(e.target.value)} placeholder="Area / locality" />
                   </div>
                   <div>
                     <Label htmlFor="pincode">Pincode</Label>

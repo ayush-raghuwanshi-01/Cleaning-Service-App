@@ -26,15 +26,12 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => Boolean(getAccessToken()));
 
   // Restore the session from the stored token on first load.
   useEffect(() => {
     const token = getAccessToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
+    if (!token) return;
     api
       .get<User>("/api/v1/auth/me")
       .then(setUser)

@@ -19,4 +19,13 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
+  {
+    files: ['src/routes/**/*.{ts,tsx}', 'src/main.tsx', 'src/lib/auth.tsx'],
+    rules: {
+      // TanStack Router route modules intentionally export route objects next to
+      // route components. main.tsx is the app entrypoint, and auth.tsx exports a
+      // provider plus the matching hook used throughout the app.
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])

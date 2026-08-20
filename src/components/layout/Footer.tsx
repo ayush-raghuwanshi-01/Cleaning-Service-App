@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
+import { BRAND_CITY, BRAND_NAME, FALLBACK_SERVICE_AREAS } from "@/lib/config";
 
 export function Footer() {
   return (
@@ -10,11 +11,11 @@ export function Footer() {
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles className="h-4 w-4" />
             </span>
-            <span className="font-display text-lg font-bold">SparkleHome</span>
+            <span className="font-display text-lg font-bold">{BRAND_NAME}</span>
           </div>
           <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-            Verified, trained home cleaning services across Bhopal. Transparent pricing,
-            no hidden charges.
+            Home cleaning services with clear scope, clear pricing and order tracking.
+            Final work details are confirmed before service.
           </p>
         </div>
 
@@ -31,13 +32,12 @@ export function Footer() {
         <div>
           <h4 className="text-sm font-bold">Service areas</h4>
           <p className="mt-3 text-sm text-muted-foreground">
-            MP Nagar · Arera Colony · Kolar Road · Indrapuri · Shahpura · Gulmohar ·
-            Hoshangabad Road & more
+            {FALLBACK_SERVICE_AREAS.length ? FALLBACK_SERVICE_AREAS.join(" · ") : `Configured service areas in ${BRAND_CITY}`}
           </p>
         </div>
       </div>
       <div className="border-t border-border py-4 text-center text-xs text-muted-foreground">
-        © {new Date().getFullYear()} SparkleHome Bhopal. All rights reserved.
+        © {new Date().getFullYear()} {BRAND_NAME}{BRAND_CITY ? ` ${BRAND_CITY}` : ""}. All rights reserved.
       </div>
     </footer>
   );

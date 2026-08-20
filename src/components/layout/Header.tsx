@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Sparkles, Phone, LogOut } from "lucide-react";
 import { Button } from "@/components/ui";
 import { useAuth } from "@/lib/auth";
-import { WHATSAPP_NUMBER } from "@/lib/config";
+import { BRAND_CITY, BRAND_NAME, SUPPORT_PHONE, formatPhone } from "@/lib/config";
 
 export function Header() {
   const { user, isAdmin, isAuthenticated, logout } = useAuth();
@@ -15,8 +15,8 @@ export function Header() {
             <Sparkles className="h-5 w-5" />
           </span>
           <span className="min-w-0">
-            <span className="block truncate font-display text-base font-bold">SparkleHome</span>
-            <span className="block text-[11px] font-medium text-muted-foreground">Bhopal</span>
+            <span className="block truncate font-display text-base font-bold">{BRAND_NAME}</span>
+            <span className="block text-[11px] font-medium text-muted-foreground">{BRAND_CITY}</span>
           </span>
         </Link>
 
@@ -67,10 +67,10 @@ export function Header() {
           )}
 
           <a
-            href={`tel:+${WHATSAPP_NUMBER}`}
+            href={SUPPORT_PHONE ? `tel:+${SUPPORT_PHONE}` : undefined}
             className="hidden items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-medium text-foreground sm:inline-flex"
           >
-            <Phone className="h-4 w-4" /> +91 98765 43210
+            <Phone className="h-4 w-4" /> {formatPhone(SUPPORT_PHONE)}
           </a>
 
           <Link

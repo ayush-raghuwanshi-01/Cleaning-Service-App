@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { BRAND_CITY, BRAND_NAME } from "@/lib/config";
 
 export function Hero() {
   return (
@@ -6,14 +7,13 @@ export function Hero() {
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 md:grid-cols-2 md:items-center md:py-24">
         <div>
           <span className="inline-block rounded-full bg-white/15 px-4 py-1 text-sm font-semibold">
-            Bhopal's trusted home cleaning service
+            {BRAND_CITY} home cleaning service
           </span>
           <h1 className="mt-5 font-display text-4xl font-extrabold leading-tight md:text-5xl">
-            Sparkling homes, honest pricing
+            {BRAND_NAME}: clean homes, clear pricing
           </h1>
           <p className="mt-4 max-w-md text-base text-primary-foreground/90">
-            Verified, trained cleaners for housekeeping, deep cleaning and more.
-            We call you, confirm the details, and deliver on time.
+            Book housekeeping for selected Bhopal locations. Our verified, background-checked team confirms the scope, schedule and final amount before work starts.
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             <Link

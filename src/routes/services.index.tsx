@@ -25,8 +25,7 @@ function ServicesPage() {
     <AppLayout>
       <h1 className="font-display text-3xl font-extrabold md:text-4xl">Our cleaning services</h1>
       <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-        Fixed scope, clear pricing and trained local staff. Final price depends on the work —
-        confirmed on a call before we start.
+        Fixed scope and clear starting prices. Final price depends on the work and is confirmed before service starts.
       </p>
 
       {CATEGORY_ORDER.map((cat) => {

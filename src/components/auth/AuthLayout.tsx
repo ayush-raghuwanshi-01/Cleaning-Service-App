@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { Sparkles } from "lucide-react";
+import { BRAND_NAME } from "@/lib/config";
 
 export function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -10,7 +11,7 @@ export function AuthLayout({ children }: { children: ReactNode }) {
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-primary text-primary-foreground">
             <Sparkles className="h-5 w-5" />
           </span>
-          <span className="font-display text-xl font-bold">SparkleHome</span>
+          <span className="font-display text-xl font-bold">{BRAND_NAME}</span>
         </div>
         {children}
         <p className="mt-6 text-center text-xs text-muted-foreground">

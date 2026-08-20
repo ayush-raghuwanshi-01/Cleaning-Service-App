@@ -1,6 +1,6 @@
-# SparkleHome — Frontend
+# Home Shine — Frontend
 
-Customer-facing web app for **SparkleHome Bhopal**, a home-cleaning service. Built with
+Customer-facing web app for **Home Shine**, a Bhopal housekeeping and home-cleaning service. Built with
 React 19, TypeScript, TanStack Router (file-based routing), TanStack Query, and Tailwind CSS v4.
 
 It talks to the FastAPI backend (`Cleaning-Service-backend`), which handles auth, the service

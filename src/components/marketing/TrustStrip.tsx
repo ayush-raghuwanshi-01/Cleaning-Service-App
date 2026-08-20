@@ -1,10 +1,10 @@
 import { ShieldCheck, Clock, IndianRupee, BadgeCheck } from "lucide-react";
 
 const ITEMS = [
-  { icon: BadgeCheck, label: "Verified & trained staff" },
-  { icon: Clock, label: "On-time service" },
+  { icon: BadgeCheck, label: "Verified background" },
+  { icon: Clock, label: "Experienced housekeeping" },
   { icon: IndianRupee, label: "Transparent pricing" },
-  { icon: ShieldCheck, label: "Safety-first cleaning" },
+  { icon: ShieldCheck, label: "Location-focused service" },
 ];
 
 export function TrustStrip() {
