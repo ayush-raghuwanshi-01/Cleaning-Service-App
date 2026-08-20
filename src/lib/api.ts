@@ -3,8 +3,9 @@ import { API_BASE_URL } from "./config";
 /**
  * Thin, typed HTTP client around `fetch`.
  *
- * Handles JSON serialization, auth headers, and normalized error responses so
- * the rest of the app can call API functions without worrying about transport.
+ * Handles JSON serialization, auth headers, automatic token refresh on 401,
+ * and normalized error responses so the rest of the app can call API
+ * functions without worrying about transport.
  */
 
 const TOKEN_KEY = "sparklehome.access_token";
@@ -52,9 +53,41 @@ interface RequestOptions {
   headers?: Record<string, string>;
 }
 
+/**
+ * Exchange the stored refresh token for a fresh access token.
+ * Returns true on success; clears tokens if the refresh token is invalid.
+ */
+async function refreshAccessToken(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!response.ok) {
+      // Refresh token is dead — the user must log in again.
+      clearTokens();
+      return false;
+    }
+    const data = (await response.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    setAccessToken(data.access_token);
+    setRefreshToken(data.refresh_token);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function request<T>(
   path: string,
   options: RequestOptions = {},
+  isRetry = false,
 ): Promise<T> {
   const { method = "GET", body, rawBody, headers } = options;
 
@@ -86,6 +119,19 @@ async function request<T>(
       0,
       "Network error. Please check your connection and try again.",
     );
+  }
+
+  // Access token expired mid-session: refresh once and retry the request.
+  // Never retry the auth endpoints themselves (avoids refresh loops).
+  if (
+    response.status === 401 &&
+    !isRetry &&
+    !path.startsWith("/api/v1/auth/")
+  ) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed) {
+      return request<T>(path, options, true);
+    }
   }
 
   if (response.status === 204) return undefined as T;

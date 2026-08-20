@@ -13,8 +13,6 @@ import {
   getRefreshToken,
   setRefreshToken,
   clearTokens,
-  isUnauthorized,
-  ApiError,
 } from "./api";
 import type { User } from "@/types";
 
@@ -34,7 +32,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Check every 10 minutes
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Keep tokens fresh every 10 minutes
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -48,16 +46,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       return;
     }
-    // Try to restore, but if it fails, try refreshing the token first
     restoreSession();
   }, []);
 
-  // Periodic token refresh
+  // Periodic token refresh so the access token never goes stale mid-session.
+  // (api.ts also auto-refreshes on any 401, so this is a belt-and-braces
+  // measure that keeps requests from ever hitting a 401 in the first place.)
   useEffect(() => {
     if (user) {
       refreshTimer.current = setInterval(() => {
         attemptTokenRefresh().catch(() => {
-          // Silent fail — if refresh fails repeatedly, user logs out at next API call
+          // Silent fail — api.ts will refresh on the next 401 anyway.
         });
       }, REFRESH_INTERVAL_MS);
     }
@@ -66,23 +65,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [user]);
 
+  /**
+   * Restore the session. `api.get("/auth/me")` already auto-refreshes the
+   * access token once on 401 (see api.ts), so no manual refresh is needed
+   * here — doing it twice would rotate/revoke the refresh token prematurely.
+   */
   async function restoreSession() {
     try {
       const me = await api.get<User>("/api/v1/auth/me");
       setUser(me);
-    } catch (err) {
-      if (isUnauthorized(err)) {
-        // Try refreshing the token
-        try {
-          await attemptTokenRefresh();
-          const me = await api.get<User>("/api/v1/auth/me");
-          setUser(me);
-        } catch {
-          clearTokens();
-        }
-      } else {
-        clearTokens();
-      }
+    } catch {
+      // Token could not be restored or refreshed — require a fresh login.
+      clearTokens();
     } finally {
       setLoading(false);
     }
