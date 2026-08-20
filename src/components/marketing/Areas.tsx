@@ -1,31 +1,34 @@
 import { useQuery } from "@tanstack/react-query";
 import { MapPin } from "lucide-react";
 import { fetchServiceAreas } from "@/lib/services-api";
+import { FALLBACK_SERVICE_AREAS } from "@/lib/config";
 
 export function Areas() {
   const { data: areas = [] } = useQuery({ queryKey: ["service-areas"], queryFn: fetchServiceAreas });
-  const active = areas.filter((a) => a.is_active);
+  const liveAreas = areas.filter((a) => a.is_active);
 
   return (
-    <section className="border-t border-border bg-secondary/40 py-14">
+    <section className="border-t border-border bg-secondary/40 py-12">
       <div className="mx-auto max-w-6xl px-4">
-        <h2 className="font-display text-2xl font-bold md:text-3xl">Bhopal areas we cover</h2>
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Serving all major areas in Bhopal. Most bookings are assigned within 15 minutes.
-        </p>
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          {active.map((a) => (
-            <div
-              key={a.id}
-              className="flex items-center gap-2 rounded-xl border border-border bg-white px-3 py-2.5 shadow-[var(--shadow-card)]"
-            >
-              <MapPin className="h-4 w-4 shrink-0 text-accent" />
-              <div>
-                <p className="text-sm font-bold leading-tight">{a.name}</p>
-                <p className="text-[11px] text-muted-foreground">{a.pincode}</p>
-              </div>
-            </div>
-          ))}
+        <h2 className="font-display text-2xl font-bold">Areas we serve</h2>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {liveAreas.length > 0
+            ? liveAreas.map((a) => (
+                <span
+                  key={a.id}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-accent" /> {a.name}
+                </span>
+              ))
+            : FALLBACK_SERVICE_AREAS.map((area) => (
+                <span
+                  key={area}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-sm text-muted-foreground"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-accent" /> {area}
+                </span>
+              ))}
         </div>
       </div>
     </section>

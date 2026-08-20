@@ -1,11 +1,13 @@
 import { Link, Outlet } from "@tanstack/react-router";
 import { LayoutDashboard, ListOrdered, Settings, PlusCircle, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { BRAND_NAME } from "@/lib/config";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/orders", label: "Orders", icon: ListOrdered },
   { to: "/admin/new", label: "Add order", icon: PlusCircle },
+  { to: "/admin/catalog", label: "Catalog", icon: Settings },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
@@ -20,7 +22,7 @@ export function AdminLayout() {
             <Sparkles className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-bold leading-tight">SparkleHome</p>
+            <p className="text-sm font-bold leading-tight">{BRAND_NAME}</p>
             <p className="text-[11px] text-muted-foreground">Admin</p>
           </div>
         </div>
@@ -51,4 +53,3 @@ export function AdminLayout() {
     </div>
   );
 }
-

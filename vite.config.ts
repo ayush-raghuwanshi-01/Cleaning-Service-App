@@ -23,8 +23,7 @@ export default defineConfig({
     // Proxy API calls to the local FastAPI backend during development.
     proxy: {
       "/api": {
-        // change: http://localhost:8000
-target: process.env.VITE_API_PROXY_TARGET || "http://127.0.0.1:8000",
+        target: process.env.VITE_API_PROXY_TARGET || "http://localhost:8000",
         changeOrigin: true,
       },
     },

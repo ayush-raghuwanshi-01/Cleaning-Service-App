@@ -6,12 +6,35 @@
  */
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
-export const BRAND_NAME = "SparkleHome";
+/**
+ * Public business information. Keep production values in `.env` so the UI never
+ * needs hard-coded demo contact details or city-specific claims.
+ */
+export const BRAND_NAME = import.meta.env.VITE_BRAND_NAME || "Home Shine";
+export const BRAND_CITY = import.meta.env.VITE_BRAND_CITY || "Bhopal";
+export const BRAND_REGION = import.meta.env.VITE_BRAND_REGION || "Madhya Pradesh";
+export const BUSINESS_EMAIL = import.meta.env.VITE_BUSINESS_EMAIL || "ayushtechguide@gmail.com";
 
-export const WHATSAPP_NUMBER = "919876543210";
+/** Phone/WhatsApp in international digits only, e.g. 919876543210. */
+export const WHATSAPP_NUMBER = import.meta.env.VITE_WHATSAPP_NUMBER || "919827206839";
+export const SUPPORT_PHONE = import.meta.env.VITE_SUPPORT_PHONE || "919584559972";
 
-/** Bhopal service area pincode prefix used for address validation. */
-export const BHOPAL_PINCODE_PREFIX = "462";
+/** Optional comma-separated fallback service area labels for empty API state. */
+export const FALLBACK_SERVICE_AREAS = String(import.meta.env.VITE_SERVICE_AREAS || "MP Nagar, Minal, JK Road, Avadhpuri, Indrapuri, Patel Nagar, Ayodhya By Pass, Ayodhya Nagar, Ashoka Garden")
+  .split(",")
+  .map((area) => area.trim())
+  .filter(Boolean);
+
+export const BRAND_LOCATION = [BRAND_CITY, BRAND_REGION].filter(Boolean).join(", ");
+
+export function formatPhone(number = SUPPORT_PHONE): string {
+  const digits = number.replace(/\D/g, "");
+  if (!digits) return "Contact us";
+  if (digits.startsWith("91") && digits.length === 12) {
+    return `+91 ${digits.slice(2, 7)} ${digits.slice(7)}`;
+  }
+  return `+${digits}`;
+}
 
 export const TIME_SLOTS = [
   "08:00 AM - 10:00 AM",

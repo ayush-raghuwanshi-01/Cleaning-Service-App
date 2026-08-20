@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Check, ChevronLeft, ChevronRight, Clock, Loader2, PhoneCall, ShieldCheck } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Loader2,
+  PhoneCall,
+  ShieldCheck,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchServices, fetchServiceAreas } from "@/lib/services-api";
 import { createOrder } from "@/lib/orders-api";
@@ -32,7 +40,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   );
 
   const [step, setStep] = useState(0);
-  const [serviceId, setServiceId] = useState(preselectServiceId ?? liveServices[0]?.id ?? "");
+  const [serviceId, setServiceId] = useState(preselectServiceId ?? "");
   const [date, setDate] = useState(todayISO());
   const [slot, setSlot] = useState<string>(TIME_SLOTS[0]);
   const [street, setStreet] = useState("");
@@ -41,7 +49,8 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   const [floor, setFloor] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const service = liveServices.find((s) => s.id === serviceId);
+  const effectiveServiceId = serviceId || preselectServiceId || liveServices[0]?.id || "";
+  const service = liveServices.find((s) => s.id === effectiveServiceId);
 
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
@@ -65,6 +74,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   function next() {
     if (step < STEPS.length - 1 && canGoNext()) setStep((s) => s + 1);
   }
+
   function back() {
     if (step > 0) setStep((s) => s - 1);
   }
@@ -84,10 +94,9 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
 
   return (
     <section id="book" className="mx-auto max-w-6xl scroll-mt-24 px-4 py-12">
-      <div className="overflow-hidden rounded-[1.75rem] border border-border bg-white shadow-[var(--shadow-float)]">
-        {/* Header + steps */}
+      <div className="overflow-hidden rounded-[1.75rem] border border-border bg-white shadow-xl shadow-slate-200/70">
         <div className="border-b border-border bg-secondary/50 px-5 py-5 md:px-8">
-          <h2 className="font-display text-xl font-bold md:text-2xl">Instant booking</h2>
+          <h2 className="font-display text-xl font-bold md:text-2xl">Request a booking</h2>
           <ol className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
             {STEPS.map((s, i) => {
               const done = i < step;
@@ -99,7 +108,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                     active
                       ? "bg-primary text-primary-foreground"
                       : done
-                        ? "bg-accent-soft text-accent"
+                        ? "bg-accent/10 text-accent"
                         : "bg-background text-muted-foreground"
                   }`}
                 >
@@ -127,7 +136,6 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
             </div>
           ) : (
             <div className="space-y-6">
-              {/* STEP 1: Service */}
               {step === 0 && (
                 <div>
                   {categoryOrder.map((cat) => {
@@ -140,7 +148,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                         </h3>
                         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                           {list.map((s) => {
-                            const selected = serviceId === s.id;
+                            const selected = effectiveServiceId === s.id;
                             return (
                               <button
                                 key={s.id}
@@ -181,7 +189,6 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                 </div>
               )}
 
-              {/* STEP 2: Schedule */}
               {step === 1 && (
                 <div className="mx-auto grid max-w-2xl gap-5 sm:grid-cols-2">
                   <div>
@@ -210,12 +217,11 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                     </select>
                   </div>
                   <p className="text-xs text-muted-foreground sm:col-span-2">
-                    We'll confirm availability when we call you. Most bookings are assigned within 15 minutes.
+                    We will confirm staff availability, exact scope and final amount before work starts.
                   </p>
                 </div>
               )}
 
-              {/* STEP 3: Address */}
               {step === 2 && (
                 <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
@@ -224,13 +230,18 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                       id="street"
                       value={street}
                       onChange={(e) => setStreet(e.target.value)}
-                      placeholder="Plot 12, MP Nagar"
+                      placeholder="House number, street, building"
                     />
                     {errors.street && <p className="mt-1 text-xs text-destructive">{errors.street}</p>}
                   </div>
                   <div>
                     <Label htmlFor="area">Area</Label>
-                    <Input id="area" value={area} onChange={(e) => setArea(e.target.value)} placeholder="MP Nagar" />
+                    <Input
+                      id="area"
+                      value={area}
+                      onChange={(e) => setArea(e.target.value)}
+                      placeholder="Area / locality"
+                    />
                     {errors.area && <p className="mt-1 text-xs text-destructive">{errors.area}</p>}
                   </div>
                   <div>
@@ -238,7 +249,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                     <Input
                       id="pincode"
                       value={pincode}
-                      onChange={(e) => setPincode(e.target.value)}
+                      onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       placeholder="462011"
                       maxLength={6}
                     />
@@ -250,7 +261,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                       id="floor"
                       value={floor}
                       onChange={(e) => setFloor(e.target.value)}
-                      placeholder="2nd floor, near rose mary school"
+                      placeholder="2nd floor, nearby landmark"
                     />
                   </div>
                   {areas.length > 0 && (
@@ -266,6 +277,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                               onClick={() => {
                                 setArea(a.name);
                                 setPincode(a.pincode);
+                                setErrors((current) => ({ ...current, area: "", pincode: "" }));
                               }}
                               className="rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary"
                             >
@@ -278,13 +290,16 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                 </div>
               )}
 
-              {/* STEP 4: Review */}
               {step === 3 && (
                 <div className="mx-auto max-w-2xl space-y-3 text-sm">
                   <div className="flex items-center justify-between border-b border-border pb-3">
                     <span className="text-muted-foreground">Service</span>
                     <span className="flex items-center gap-2 font-semibold">
-                      <img src={service ? serviceImage(service.id) : ""} alt="" className="h-8 w-8 rounded-md object-cover" />
+                      <img
+                        src={service ? serviceImage(service.id) : ""}
+                        alt=""
+                        className="h-8 w-8 rounded-md object-cover"
+                      />
                       {service?.name}
                     </span>
                   </div>
@@ -305,27 +320,24 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                 </div>
               )}
 
-              {/* STEP 5: Confirm (our model — no online payment) */}
               {step === 4 && (
                 <div className="mx-auto max-w-2xl">
-                  <div className="rounded-2xl bg-primary-soft p-5 text-center">
+                  <div className="rounded-2xl bg-primary/10 p-5 text-center">
                     <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-primary text-white">
                       <PhoneCall className="h-6 w-6" />
                     </span>
-                    <h3 className="mt-3 font-display text-lg font-bold">Request received!</h3>
+                    <h3 className="mt-3 font-display text-lg font-bold">Ready to request booking</h3>
                     <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
-                      Our team will call you shortly to confirm the details and the final price.
-                      You can pay by <strong>UPI or cash after the work is done</strong> — no online
-                      payment needed.
+                      Our team will call you to confirm availability, cleaning requirements and the final price.
+                      You can pay by <strong>UPI or cash after the work is done</strong> — no online payment needed.
                     </p>
                     <div className="mt-4 flex items-center justify-center gap-2 text-xs font-semibold text-primary">
-                      <ShieldCheck className="h-4 w-4" /> Free cancellation · Transparent pricing
+                      <ShieldCheck className="h-4 w-4" /> Verified background · Transparent pricing
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Nav buttons */}
               <div className="flex items-center justify-between border-t border-border pt-5">
                 <Button variant="ghost" disabled={step === 0} onClick={back}>
                   <ChevronLeft className="h-4 w-4" /> Back
@@ -355,4 +367,3 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
     </section>
   );
 }
-

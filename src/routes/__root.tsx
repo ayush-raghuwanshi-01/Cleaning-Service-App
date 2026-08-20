@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BRAND_CITY, BRAND_NAME } from "@/lib/config";
 import { Outlet, Link, createRootRouteWithContext } from "@tanstack/react-router";
 
 // Router context available to every route (via `Route.useRouteContext()` and
@@ -23,11 +24,11 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SparkleHome — Home Cleaning in Bhopal" },
+      { title: `${BRAND_NAME} — Home Cleaning${BRAND_CITY ? ` in ${BRAND_CITY}` : ""}` },
       {
         name: "description",
         content:
-          "Book verified, trained home cleaners in Bhopal. Housekeeping, deep cleaning and more with transparent pricing.",
+          `Book home cleaning services${BRAND_CITY ? ` in ${BRAND_CITY}` : ""}. Browse services, request a slot and track your order online.`,
       },
     ],
     links: [

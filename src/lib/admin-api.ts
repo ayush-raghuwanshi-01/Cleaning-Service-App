@@ -8,6 +8,7 @@ import type {
   OrderSummary,
   PaymentMethod,
   Service,
+  ServiceArea,
   WhatsAppConfig,
 } from "@/types";
 
@@ -109,10 +110,27 @@ export function fetchAdminServices(): Promise<Service[]> {
   return api.get<Service[]>("/api/v1/admin/services");
 }
 
-export function createService(
-  payload: Record<string, unknown>,
-): Promise<Service> {
+export type ServicePayload = Omit<Service, "id">;
+export type ServiceAreaPayload = Omit<ServiceArea, "id">;
+
+export function createService(payload: ServicePayload): Promise<Service> {
   return api.post<Service>("/api/v1/admin/services", payload);
+}
+
+export function updateService(id: string, payload: ServicePayload): Promise<Service> {
+  return api.patch<Service>(`/api/v1/admin/services/${id}`, payload);
+}
+
+export function fetchAdminServiceAreas(): Promise<ServiceArea[]> {
+  return api.get<ServiceArea[]>("/api/v1/admin/service-areas");
+}
+
+export function createServiceArea(payload: ServiceAreaPayload): Promise<ServiceArea> {
+  return api.post<ServiceArea>("/api/v1/admin/service-areas", payload);
+}
+
+export function updateServiceArea(id: string, payload: ServiceAreaPayload): Promise<ServiceArea> {
+  return api.patch<ServiceArea>(`/api/v1/admin/service-areas/${id}`, payload);
 }
 
 // --- whatsapp config ---

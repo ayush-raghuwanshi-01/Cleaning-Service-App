@@ -8,9 +8,10 @@ import {
   setOrderStatus,
   updateOrder,
 } from "@/lib/admin-api";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageLoader } from "@/components/ui";
-import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL, type OrderStatus, type PaymentMethod } from "@/types";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageLoader, Spinner } from "@/components/ui";
+import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL, type OrderAddonType, type OrderDetail, type OrderStatus, type PaymentMethod } from "@/types";
 import { formatDateTime, inr } from "@/lib/format";
+import { ApiError } from "@/lib/api";
 
 export const Route = createFileRoute("/admin/orders/$orderId")({
   component: AdminOrderDetail,
@@ -27,6 +28,9 @@ function AdminOrderDetail() {
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("UPI");
   const [reference, setReference] = useState("");
+  const [addonType, setAddonType] = useState<OrderAddonType>("60min");
+  const [addonPrice, setAddonPrice] = useState("");
+  const [addonQuantity, setAddonQuantity] = useState("1");
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-order", orderId] });
 
@@ -51,8 +55,12 @@ function AdminOrderDetail() {
   });
 
   const addonMutation = useMutation({
-    mutationFn: () => addOrderAddon(orderId, "60min", 80),
-    onSuccess: invalidate,
+    mutationFn: () => addOrderAddon(orderId, addonType, Number(addonPrice), Number(addonQuantity || 1)),
+    onSuccess: () => {
+      setAddonPrice("");
+      setAddonQuantity("1");
+      invalidate();
+    },
   });
 
   const markStartedMutation = useMutation({
@@ -98,6 +106,8 @@ function AdminOrderDetail() {
           </CardContent>
         </Card>
 
+        <OrderEditForm key={order.updated_at} order={order} onSaved={invalidate} />
+
         {/* Status control */}
         <Card>
           <CardHeader><CardTitle>Status</CardTitle></CardHeader>
@@ -124,12 +134,47 @@ function AdminOrderDetail() {
             <Button variant="outline" className="w-full" onClick={() => markStartedMutation.mutate()} disabled={markStartedMutation.isPending}>
               Mark started
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => addonMutation.mutate()} disabled={addonMutation.isPending}>
-              Add 60-min add-on (₹80)
-            </Button>
           </CardContent>
         </Card>
       </div>
+
+      {/* Add-ons */}
+      <Card className="mt-6">
+        <CardHeader><CardTitle>Add extra time</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <Label>Type</Label>
+              <select value={addonType} onChange={(e) => setAddonType(e.target.value as OrderAddonType)} className="h-10 rounded-lg border border-input bg-background px-3 text-sm">
+                <option value="30min">30 minutes</option>
+                <option value="60min">60 minutes</option>
+              </select>
+            </div>
+            <div>
+              <Label>Price</Label>
+              <Input type="number" value={addonPrice} onChange={(e) => setAddonPrice(e.target.value)} placeholder="Amount" />
+            </div>
+            <div>
+              <Label>Quantity</Label>
+              <Input type="number" min="1" value={addonQuantity} onChange={(e) => setAddonQuantity(e.target.value)} />
+            </div>
+            <Button onClick={() => addonMutation.mutate()} disabled={!addonPrice || addonMutation.isPending}>
+              {addonMutation.isPending ? <Spinner /> : "Add"}
+            </Button>
+          </div>
+          {addonMutation.isError && <p className="mt-2 text-sm text-destructive">{errorMessage(addonMutation.error)}</p>}
+          {order.addons.length > 0 && (
+            <div className="mt-4 space-y-2 text-sm">
+              {order.addons.map((addon) => (
+                <div key={addon.id} className="flex justify-between rounded-lg bg-secondary px-3 py-2">
+                  <span>{addon.quantity} × {addon.addon_type}</span>
+                  <span className="font-semibold">{inr(addon.price)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Record payment */}
       <Card className="mt-6">
@@ -174,4 +219,98 @@ function AdminOrderDetail() {
       </Card>
     </div>
   );
+}
+
+
+function OrderEditForm({ order, onSaved }: { order: OrderDetail; onSaved: () => void }) {
+  const [customerName, setCustomerName] = useState(order.customer_name);
+  const [customerPhone, setCustomerPhone] = useState(order.customer_phone);
+  const [date, setDate] = useState(order.scheduled_date);
+  const [slot, setSlot] = useState(order.scheduled_slot);
+  const [street, setStreet] = useState(order.street);
+  const [area, setArea] = useState(order.area);
+  const [pincode, setPincode] = useState(order.pincode);
+  const [estimatedHours, setEstimatedHours] = useState(order.estimated_hours?.toString() ?? "");
+  const [finalAmount, setFinalAmount] = useState(order.amount?.toString() ?? "");
+  const [notes, setNotes] = useState(order.description ?? "");
+
+  const mutation = useMutation({
+    mutationFn: () => updateOrder(order.id, {
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      scheduled_date: date,
+      scheduled_slot: slot,
+      street,
+      area,
+      pincode,
+      estimated_hours: estimatedHours ? Number(estimatedHours) : null,
+      amount: finalAmount ? Number(finalAmount) : null,
+      description: notes || null,
+    }),
+    onSuccess: onSaved,
+  });
+
+  return (
+    <Card className="lg:col-span-2">
+      <CardHeader><CardTitle>Edit order</CardTitle></CardHeader>
+      <CardContent>
+        <form
+          className="grid gap-3 sm:grid-cols-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            mutation.mutate();
+          }}
+        >
+          <div>
+            <Label>Customer name</Label>
+            <Input value={customerName} onChange={(e) => setCustomerName(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Customer phone</Label>
+            <Input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Date</Label>
+            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Time slot</Label>
+            <Input value={slot} onChange={(e) => setSlot(e.target.value)} required />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Address</Label>
+            <Input value={street} onChange={(e) => setStreet(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Area</Label>
+            <Input value={area} onChange={(e) => setArea(e.target.value)} required />
+          </div>
+          <div>
+            <Label>Pincode</Label>
+            <Input value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} required />
+          </div>
+          <div>
+            <Label>Estimated hours</Label>
+            <Input type="number" step="0.5" value={estimatedHours} onChange={(e) => setEstimatedHours(e.target.value)} />
+          </div>
+          <div>
+            <Label>Final amount</Label>
+            <Input type="number" value={finalAmount} onChange={(e) => setFinalAmount(e.target.value)} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label>Internal/customer notes</Label>
+            <Input value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          {mutation.isError && <p className="text-sm text-destructive sm:col-span-2">{errorMessage(mutation.error)}</p>}
+          <div className="sm:col-span-2">
+            <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? <Spinner /> : "Save changes"}</Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof ApiError ? error.message : "Operation failed. Please check the details and try again.";
 }
