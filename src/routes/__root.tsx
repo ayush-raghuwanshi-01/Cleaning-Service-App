@@ -46,13 +46,8 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
-
-  return (
-    <QueryClientProvider client={queryClient}>
-      <Outlet />
-    </QueryClientProvider>
-  );
+  // Removed redundant QueryClientProvider — already in main.tsx
+  return <Outlet />;
 }
 
 function NotFound() {

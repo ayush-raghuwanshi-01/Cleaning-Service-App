@@ -16,10 +16,13 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
+import { Route as AdminAuditLogRouteImport } from './routes/admin.audit-log'
 import { Route as AdminCatalogRouteImport } from './routes/admin.catalog'
 import { Route as AdminNewRouteImport } from './routes/admin.new'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminStaffRouteImport } from './routes/admin.staff'
 import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders.$orderId'
 import { Route as ServicesIndexRouteImport } from './routes/services.index'
@@ -62,6 +65,16 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminAuditLogRoute = AdminAuditLogRouteImport.update({
+  id: '/audit-log',
+  path: '/audit-log',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminCatalogRoute = AdminCatalogRouteImport.update({
   id: '/catalog',
   path: '/catalog',
@@ -80,6 +93,11 @@ const AdminOrdersRoute = AdminOrdersRouteImport.update({
 const AdminSettingsRoute = AdminSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminStaffRoute = AdminStaffRouteImport.update({
+  id: '/staff',
+  path: '/staff',
   getParentRoute: () => AdminRoute,
 } as any)
 const OrdersIndexRoute = OrdersIndexRouteImport.update({
@@ -120,10 +138,13 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/catalog': typeof AdminCatalogRoute
   '/admin/new': typeof AdminNewRoute
   '/admin/orders': typeof AdminOrdersRouteWithChildren
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/staff': typeof AdminStaffRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/services/$serviceId': typeof ServicesServiceIdRoute
   '/track/$orderCode': typeof TrackOrderCodeRoute
@@ -138,10 +159,13 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/catalog': typeof AdminCatalogRoute
   '/admin/new': typeof AdminNewRoute
   '/admin/orders': typeof AdminOrdersRouteWithChildren
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/staff': typeof AdminStaffRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/services/$serviceId': typeof ServicesServiceIdRoute
   '/track/$orderCode': typeof TrackOrderCodeRoute
@@ -158,10 +182,13 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/pricing': typeof PricingRoute
   '/register': typeof RegisterRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/catalog': typeof AdminCatalogRoute
   '/admin/new': typeof AdminNewRoute
   '/admin/orders': typeof AdminOrdersRouteWithChildren
   '/admin/settings': typeof AdminSettingsRoute
+  '/admin/staff': typeof AdminStaffRoute
   '/orders/$orderId': typeof OrdersOrderIdRoute
   '/services/$serviceId': typeof ServicesServiceIdRoute
   '/track/$orderCode': typeof TrackOrderCodeRoute
@@ -179,10 +206,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/pricing'
     | '/register'
+    | '/admin/analytics'
+    | '/admin/audit-log'
     | '/admin/catalog'
     | '/admin/new'
     | '/admin/orders'
     | '/admin/settings'
+    | '/admin/staff'
     | '/orders/$orderId'
     | '/services/$serviceId'
     | '/track/$orderCode'
@@ -197,10 +227,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/pricing'
     | '/register'
+    | '/admin/analytics'
+    | '/admin/audit-log'
     | '/admin/catalog'
     | '/admin/new'
     | '/admin/orders'
     | '/admin/settings'
+    | '/admin/staff'
     | '/orders/$orderId'
     | '/services/$serviceId'
     | '/track/$orderCode'
@@ -216,10 +249,13 @@ export interface FileRouteTypes {
     | '/login'
     | '/pricing'
     | '/register'
+    | '/admin/analytics'
+    | '/admin/audit-log'
     | '/admin/catalog'
     | '/admin/new'
     | '/admin/orders'
     | '/admin/settings'
+    | '/admin/staff'
     | '/orders/$orderId'
     | '/services/$serviceId'
     | '/track/$orderCode'
@@ -294,6 +330,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/audit-log': {
+      id: '/admin/audit-log'
+      path: '/audit-log'
+      fullPath: '/admin/audit-log'
+      preLoaderRoute: typeof AdminAuditLogRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/catalog': {
       id: '/admin/catalog'
       path: '/catalog'
@@ -320,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/admin/settings'
       preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/staff': {
+      id: '/admin/staff'
+      path: '/staff'
+      fullPath: '/admin/staff'
+      preLoaderRoute: typeof AdminStaffRouteImport
       parentRoute: typeof AdminRoute
     }
     '/orders/': {
@@ -380,18 +437,24 @@ const AdminOrdersRouteWithChildren = AdminOrdersRoute._addFileChildren(
 )
 
 interface AdminRouteChildren {
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminAuditLogRoute: typeof AdminAuditLogRoute
   AdminCatalogRoute: typeof AdminCatalogRoute
   AdminNewRoute: typeof AdminNewRoute
   AdminOrdersRoute: typeof AdminOrdersRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminStaffRoute: typeof AdminStaffRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminAuditLogRoute: AdminAuditLogRoute,
   AdminCatalogRoute: AdminCatalogRoute,
   AdminNewRoute: AdminNewRoute,
   AdminOrdersRoute: AdminOrdersRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRoute,
+  AdminStaffRoute: AdminStaffRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 
