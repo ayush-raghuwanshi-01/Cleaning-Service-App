@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addOrderAddon,
   fetchAdminOrder,
+  fetchStaff,
+  assignStaffToOrder,
   recordPayment,
   setOrderStatus,
   updateOrder,
@@ -31,6 +33,11 @@ function AdminOrderDetail() {
   const [addonType, setAddonType] = useState<OrderAddonType>("60min");
   const [addonPrice, setAddonPrice] = useState("");
   const [addonQuantity, setAddonQuantity] = useState("1");
+
+  const { data: staffList = [] } = useQuery({
+    queryKey: ["admin-staff"],
+    queryFn: fetchStaff,
+  });
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["admin-order", orderId] });
 
@@ -66,6 +73,15 @@ function AdminOrderDetail() {
   const markStartedMutation = useMutation({
     mutationFn: () => updateOrder(orderId, { started_at: new Date().toISOString() }),
     onSuccess: invalidate,
+  });
+
+  const [assignStaffId, setAssignStaffId] = useState("");
+  const assignMutation = useMutation({
+    mutationFn: () => assignStaffToOrder(orderId, assignStaffId),
+    onSuccess: () => {
+      setAssignStaffId("");
+      invalidate();
+    },
   });
 
   if (isLoading) return <PageLoader />;
@@ -134,9 +150,70 @@ function AdminOrderDetail() {
             <Button variant="outline" className="w-full" onClick={() => markStartedMutation.mutate()} disabled={markStartedMutation.isPending}>
               Mark started
             </Button>
+            <div className="flex gap-2">
+              <a
+                href={`tel:${order.customer_phone}`}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-secondary"
+              >
+                Call customer
+              </a>
+              <a
+                href={`https://wa.me/${order.customer_phone.startsWith("+") ? order.customer_phone.slice(1) : order.customer_phone.startsWith("91") ? order.customer_phone : "91" + order.customer_phone}?text=Hi ${order.customer_name}, your ${order.service_name} booking (${order.order_code})`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold hover:bg-secondary"
+              >
+                WhatsApp
+              </a>
+            </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Staff Assignment */}
+      <Card className="mt-6">
+        <CardHeader><CardTitle>Assign Staff</CardTitle></CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-48">
+              <Label>Staff member</Label>
+              <select
+                value={assignStaffId}
+                onChange={(e) => setAssignStaffId(e.target.value)}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Select staff</option>
+                {staffList
+                  .filter((s) => s.status === "active")
+                  .map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.full_name} — {s.specializations || "General"}
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <Button
+              onClick={() => assignMutation.mutate()}
+              disabled={!assignStaffId || assignMutation.isPending}
+            >
+              {assignMutation.isPending ? <Spinner /> : "Assign"}
+            </Button>
+          </div>
+          {order.staff_assignments && order.staff_assignments.length > 0 && (
+            <div className="mt-4 space-y-2 text-sm">
+              <p className="font-semibold text-muted-foreground">Assigned staff:</p>
+              {order.staff_assignments.map((a: any) => (
+                <div key={a.id} className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2">
+                  <span>{a.staff_name || a.staff_id}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {a.completed_at ? "Completed" : a.role}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Add-ons */}
       <Card className="mt-6">

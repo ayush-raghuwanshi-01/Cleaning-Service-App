@@ -111,6 +111,19 @@ export interface OrderSummary {
   created_at: string;
 }
 
+export interface StaffAssignment {
+  id: string;
+  order_id: string;
+  staff_id: string;
+  staff_name: string | null;
+  assigned_by: string | null;
+  role: string;
+  started_at: string | null;
+  completed_at: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
 export interface OrderDetail extends OrderSummary {
   customer_email: string | null;
   street: string;
@@ -130,6 +143,7 @@ export interface OrderDetail extends OrderSummary {
   events: OrderEvent[];
   payment_status: "unpaid" | "partial" | "paid";
   payment_summary: string;
+  staff_assignments?: StaffAssignment[];
 }
 
 export interface DayStats {
