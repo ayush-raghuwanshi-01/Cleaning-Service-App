@@ -1,17 +1,22 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { UserPlus, X } from "lucide-react";
 import {
   addOrderAddon,
+  assignStaff,
   fetchAdminOrder,
+  fetchStaff,
   recordPayment,
   setOrderStatus,
+  unassignStaff,
   updateOrder,
 } from "@/lib/admin-api";
+import { errorMessage } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, PageLoader, Spinner } from "@/components/ui";
 import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL, type OrderAddonType, type OrderDetail, type OrderStatus, type PaymentMethod } from "@/types";
 import { formatDateTime, inr } from "@/lib/format";
-import { ApiError } from "@/lib/api";
 
 export const Route = createFileRoute("/admin/orders/$orderId")({
   component: AdminOrderDetail,
@@ -24,6 +29,7 @@ function AdminOrderDetail() {
     queryKey: ["admin-order", orderId],
     queryFn: () => fetchAdminOrder(orderId),
   });
+  const { data: staff = [] } = useQuery({ queryKey: ["staff"], queryFn: fetchStaff });
 
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<PaymentMethod>("UPI");
@@ -63,9 +69,22 @@ function AdminOrderDetail() {
     },
   });
 
-  const markStartedMutation = useMutation({
-    mutationFn: () => updateOrder(orderId, { started_at: new Date().toISOString() }),
-    onSuccess: invalidate,
+  const assignMutation = useMutation({
+    mutationFn: (staffIds: string[]) => assignStaff(orderId, staffIds),
+    onSuccess: () => {
+      invalidate();
+      toast("Staff assigned", "success");
+    },
+    onError: (e) => toast(errorMessage(e), "error"),
+  });
+
+  const unassignMutation = useMutation({
+    mutationFn: (staffId: string) => unassignStaff(orderId, staffId),
+    onSuccess: () => {
+      invalidate();
+      toast("Staff removed", "success");
+    },
+    onError: (e) => toast(errorMessage(e), "error"),
   });
 
   if (isLoading) return <PageLoader />;
@@ -131,9 +150,41 @@ function AdminOrderDetail() {
                 Move to {ORDER_STATUS_LABEL[nextStatus]}
               </Button>
             )}
-            <Button variant="outline" className="w-full" onClick={() => markStartedMutation.mutate()} disabled={markStartedMutation.isPending}>
-              Mark started
-            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Staff assignment */}
+        <Card>
+          <CardHeader><CardTitle>Staff</CardTitle></CardHeader>
+          <CardContent className="space-y-3">
+            {order.assigned_staff.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {order.assigned_staff.map((s) => (
+                  <span key={s.id} className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-3 py-1 text-xs font-semibold">
+                    {s.full_name}
+                    <button
+                      onClick={() => unassignMutation.mutate(s.id)}
+                      disabled={unassignMutation.isPending}
+                      className="text-muted-foreground hover:text-red-600"
+                      aria-label={`Remove ${s.full_name}`}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No staff assigned yet.</p>
+            )}
+
+            {order.status !== "completed" && order.status !== "cancelled" && (
+              <StaffPicker
+                staff={staff}
+                assignedIds={order.assigned_staff.map((s) => s.id)}
+                onAssign={(ids) => assignMutation.mutate(ids)}
+                pending={assignMutation.isPending}
+              />
+            )}
           </CardContent>
         </Card>
       </div>
@@ -311,6 +362,56 @@ function OrderEditForm({ order, onSaved }: { order: OrderDetail; onSaved: () => 
   );
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof ApiError ? error.message : "Operation failed. Please check the details and try again.";
+function StaffPicker({
+  staff,
+  assignedIds,
+  onAssign,
+  pending,
+}: {
+  staff: import("@/types").StaffMember[];
+  assignedIds: string[];
+  onAssign: (ids: string[]) => void;
+  pending: boolean;
+}) {
+  const available = staff.filter((s) => s.is_active && !assignedIds.includes(s.id));
+  const [selected, setSelected] = useState<string[]>([]);
+
+  function toggle(id: string) {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  if (available.length === 0) {
+    return <p className="text-xs text-muted-foreground">All active staff are already on this job (or none exist).</p>;
+  }
+
+  return (
+    <div>
+      <div className="max-h-40 space-y-1 overflow-auto rounded-lg border border-border p-2">
+        {available.map((s) => (
+          <label key={s.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-secondary">
+            <input
+              type="checkbox"
+              checked={selected.includes(s.id)}
+              onChange={() => toggle(s.id)}
+            />
+            <span>{s.full_name}</span>
+            {s.skills && s.skills.length > 0 && (
+              <span className="text-xs text-muted-foreground">({s.skills.join(", ")})</span>
+            )}
+          </label>
+        ))}
+      </div>
+      <Button
+        size="sm"
+        className="mt-2 w-full"
+        onClick={() => {
+          onAssign(selected);
+          setSelected([]);
+        }}
+        disabled={selected.length === 0 || pending}
+      >
+        {pending ? <Spinner /> : <UserPlus className="h-4 w-4" />} Assign selected
+      </Button>
+    </div>
+  );
 }

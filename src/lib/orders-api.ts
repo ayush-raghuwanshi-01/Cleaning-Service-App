@@ -33,6 +33,13 @@ export function cancelOrder(id: string): Promise<OrderDetail> {
   return api.post<OrderDetail>(`/api/v1/orders/${id}/cancel`);
 }
 
+export function rescheduleOrder(
+  id: string,
+  payload: { scheduled_date: string; scheduled_slot: string },
+): Promise<OrderDetail> {
+  return api.post<OrderDetail>(`/api/v1/orders/${id}/reschedule`, payload);
+}
+
 /** Public, unauthenticated order tracking by order code. */
 export interface TrackResult {
   order_code: string;

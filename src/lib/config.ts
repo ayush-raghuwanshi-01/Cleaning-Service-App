@@ -7,6 +7,12 @@
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
 
 /**
+ * Google OAuth client ID for "Sign in with Google". Must match the audience of
+ * the ID token, and the backend's GOOGLE_CLIENT_ID must equal this value.
+ */
+export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || "";
+
+/**
  * Public business information. Keep production values in `.env` so the UI never
  * needs hard-coded demo contact details or city-specific claims.
  */

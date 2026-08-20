@@ -1,5 +1,5 @@
 import { Link, Outlet } from "@tanstack/react-router";
-import { LayoutDashboard, ListOrdered, Settings, PlusCircle, Sparkles } from "lucide-react";
+import { LayoutDashboard, ListOrdered, Settings, PlusCircle, Sparkles, Users, HardHat } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { BRAND_NAME } from "@/lib/config";
 
@@ -7,7 +7,9 @@ const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/orders", label: "Orders", icon: ListOrdered },
   { to: "/admin/new", label: "Add order", icon: PlusCircle },
+  { to: "/admin/staff", label: "Staff", icon: HardHat },
   { to: "/admin/catalog", label: "Catalog", icon: Settings },
+  { to: "/admin/users", label: "Team & users", icon: Users },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 

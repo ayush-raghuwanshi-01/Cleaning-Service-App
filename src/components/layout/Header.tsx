@@ -49,6 +49,9 @@ export function Header() {
               <Link to="/orders" className="hidden rounded-full border border-border px-3 py-2 text-xs font-semibold text-muted-foreground lg:inline-flex">
                 My Orders
               </Link>
+              <Link to="/addresses" className="hidden rounded-full border border-border px-3 py-2 text-xs font-semibold text-muted-foreground lg:inline-flex">
+                Addresses
+              </Link>
               <Button
                 variant="ghost"
                 size="sm"

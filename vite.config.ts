@@ -18,6 +18,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: "0.0.0.0",
     // Allow the sandbox preview host and any custom domain.
     allowedHosts: true,
     // Proxy API calls to the local FastAPI backend during development.

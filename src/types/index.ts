@@ -7,7 +7,7 @@ export type UserRole = "OWNER" | "ADMIN" | "OPERATIONS" | "STAFF" | "CUSTOMER";
 export interface User {
   id: string;
   full_name: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   role: UserRole;
   is_active: boolean;
@@ -128,6 +128,7 @@ export interface OrderDetail extends OrderSummary {
   payments: Payment[];
   addons: OrderAddon[];
   events: OrderEvent[];
+  assigned_staff: StaffMember[];
   payment_status: "unpaid" | "partial" | "paid";
   payment_summary: string;
 }
@@ -140,6 +141,55 @@ export interface DayStats {
   revenue_upi: number;
   revenue_cash: number;
   by_source: Record<string, number>;
+}
+
+export interface StaffMember {
+  id: string;
+  full_name: string;
+  phone: string;
+  skills: string[] | null;
+  is_active: boolean;
+}
+
+export interface Address {
+  id: string;
+  label: string;
+  recipient_name: string;
+  recipient_phone: string;
+  line1: string;
+  line2: string | null;
+  landmark: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  is_default: boolean;
+  service_area_id: string | null;
+}
+
+export interface AdminUser {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  email: string | null;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ReportSummary {
+  orders: number;
+  completed: number;
+  cancelled: number;
+  revenue: number;
+  revenue_upi: number;
+  revenue_cash: number;
+}
+
+export interface ReportResponse {
+  start: string;
+  end: string;
+  total: ReportSummary;
+  by_day: Record<string, ReportSummary>;
 }
 
 export interface WhatsAppConfig {

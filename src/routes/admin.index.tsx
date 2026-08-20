@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { fetchDayStats } from "@/lib/admin-api";
+import { fetchDayStats, fetchReport } from "@/lib/admin-api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
 import { inr } from "@/lib/format";
 
@@ -12,6 +12,10 @@ function AdminDashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: () => fetchDayStats(),
+  });
+  const { data: report } = useQuery({
+    queryKey: ["admin-report"],
+    queryFn: () => fetchReport(),
   });
 
   const items = [
@@ -48,6 +52,32 @@ function AdminDashboard() {
                   {src}: {count}
                 </span>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {report && (
+        <Card className="mt-6">
+          <CardHeader><CardTitle>Last 7 days</CardTitle></CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-6 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total orders</p>
+                <p className="font-display text-xl font-extrabold">{report.total.orders}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Completed</p>
+                <p className="font-display text-xl font-extrabold">{report.total.completed}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Revenue</p>
+                <p className="font-display text-xl font-extrabold text-primary">{inr(report.total.revenue)}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">UPI / Cash</p>
+                <p className="font-display text-xl font-extrabold">{inr(report.total.revenue_upi)} / {inr(report.total.revenue_cash)}</p>
+              </div>
             </div>
           </CardContent>
         </Card>

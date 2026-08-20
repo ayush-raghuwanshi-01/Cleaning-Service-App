@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchServices, fetchServiceAreas } from "@/lib/services-api";
+import { fetchAddresses } from "@/lib/addresses-api";
 import { createOrder } from "@/lib/orders-api";
+import { errorMessage } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { TIME_SLOTS } from "@/lib/config";
 import { todayISO, inr, durationLabel } from "@/lib/format";
 import { Button, Input, Label } from "@/components/ui";
@@ -28,10 +31,15 @@ const CATEGORY_LABEL: Record<string, string> = {
 
 export function BookingWidget({ preselectServiceId }: { preselectServiceId?: string }) {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, updateProfile } = useAuth();
 
   const { data: services = [] } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
   const { data: areas = [] } = useQuery({ queryKey: ["service-areas"], queryFn: fetchServiceAreas });
+  const { data: savedAddresses = [] } = useQuery({
+    queryKey: ["addresses"],
+    queryFn: fetchAddresses,
+    enabled: isAuthenticated,
+  });
 
   const liveServices = useMemo(() => services.filter((s) => s.is_active), [services]);
   const categoryOrder = useMemo(
@@ -47,6 +55,8 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   const [area, setArea] = useState("");
   const [pincode, setPincode] = useState("");
   const [floor, setFloor] = useState("");
+  const [phone, setPhone] = useState("");
+  const [savingPhone, setSavingPhone] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const effectiveServiceId = serviceId || preselectServiceId || liveServices[0]?.id || "";
@@ -54,8 +64,25 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
 
   const createOrderMutation = useMutation({
     mutationFn: createOrder,
-    onSuccess: (order) => navigate({ to: "/orders/$orderId", params: { orderId: order.id } }),
+    onSuccess: (order) => {
+      toast("Booking request submitted!", "success");
+      navigate({ to: "/orders/$orderId", params: { orderId: order.id } });
+    },
+    onError: (err) => toast(errorMessage(err, "Could not place the order."), "error"),
   });
+
+  async function savePhone() {
+    if (phone.length < 10) return;
+    setSavingPhone(true);
+    try {
+      await updateProfile({ phone });
+      toast("Phone number saved", "success");
+    } catch (err) {
+      toast(errorMessage(err), "error");
+    } finally {
+      setSavingPhone(false);
+    }
+  }
 
   function canGoNext(): boolean {
     if (step === 0) return Boolean(service);
@@ -224,6 +251,48 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
 
               {step === 2 && (
                 <div className="mx-auto grid max-w-2xl gap-4 sm:grid-cols-2">
+                  {user && !user.phone && (
+                    <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 sm:col-span-2">
+                      <Label htmlFor="booking-phone">Your mobile number (required to book)</Label>
+                      <div className="mt-2 flex gap-2">
+                        <Input
+                          id="booking-phone"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                          placeholder="9876543210"
+                          maxLength={10}
+                        />
+                        <Button type="button" onClick={savePhone} disabled={phone.length < 10 || savingPhone}>
+                          {savingPhone ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {savedAddresses.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <Label>Saved addresses</Label>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {savedAddresses.map((a) => (
+                          <button
+                            key={a.id}
+                            type="button"
+                            onClick={() => {
+                              setStreet(a.line1);
+                              setArea(a.city);
+                              setPincode(a.pincode);
+                              setFloor(a.landmark ?? "");
+                              setErrors({});
+                            }}
+                            className="rounded-full border border-border px-2.5 py-1 text-xs font-semibold text-muted-foreground hover:border-primary hover:text-primary"
+                          >
+                            {a.label}: {a.line1}, {a.city} {a.pincode}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="sm:col-span-2">
                     <Label htmlFor="street">House / street</Label>
                     <Input

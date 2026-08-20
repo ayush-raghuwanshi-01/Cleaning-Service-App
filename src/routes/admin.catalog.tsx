@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Trash2 } from "lucide-react";
 import {
   createService,
   createServiceArea,
+  deleteService,
+  deleteServiceArea,
   fetchAdminServiceAreas,
   fetchAdminServices,
   updateService,
@@ -12,6 +15,7 @@ import {
   type ServicePayload,
 } from "@/lib/admin-api";
 import { ApiError } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Spinner } from "@/components/ui";
 import { durationLabel, inr } from "@/lib/format";
 import type { Service, ServiceArea } from "@/types";
@@ -70,6 +74,7 @@ function AdminCatalog() {
 }
 
 function ServicesManager() {
+  const qc = useQueryClient();
   const { data: services = [], isLoading } = useQuery({
     queryKey: ["admin-services"],
     queryFn: fetchAdminServices,
@@ -93,24 +98,42 @@ function ServicesManager() {
           ) : (
             <div className="space-y-3">
               {services.map((service) => (
-                <button
+                <div
                   key={service.id}
-                  onClick={() => setEditing(service)}
-                  className="w-full rounded-xl border border-border p-4 text-left transition hover:border-primary/60"
+                  className="flex items-start justify-between gap-3 rounded-xl border border-border p-4 transition hover:border-primary/60"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-bold">{service.name}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {service.category} · {durationLabel(service.duration_minutes)} · {service.is_active ? "Active" : "Hidden"}
-                      </p>
-                      {service.blurb && <p className="mt-2 text-sm text-muted-foreground">{service.blurb}</p>}
+                  <button onClick={() => setEditing(service)} className="min-w-0 flex-1 text-left">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-bold">{service.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {service.category} · {durationLabel(service.duration_minutes)} · {service.is_active ? "Active" : "Hidden"}
+                        </p>
+                        {service.blurb && <p className="mt-2 text-sm text-muted-foreground">{service.blurb}</p>}
+                      </div>
+                      <span className="shrink-0 text-sm font-extrabold text-primary">
+                        {service.price_max ? `${inr(service.base_price)}–${inr(service.price_max)}` : inr(service.base_price)}
+                      </span>
                     </div>
-                    <span className="shrink-0 text-sm font-extrabold text-primary">
-                      {service.price_max ? `${inr(service.base_price)}–${inr(service.price_max)}` : inr(service.base_price)}
-                    </span>
-                  </div>
-                </button>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (confirm(`Delete service "${service.name}"?`)) {
+                        deleteService(service.id)
+                          .then(() => {
+                            qc.invalidateQueries({ queryKey: ["admin-services"] });
+                            qc.invalidateQueries({ queryKey: ["services"] });
+                            toast("Service deleted", "success");
+                          })
+                          .catch((e) => toast(errorMessage(e), "error"));
+                      }
+                    }}
+                    className="shrink-0 rounded-lg p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                    aria-label={`Delete ${service.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -323,7 +346,7 @@ function AreaRow({ area }: { area: ServiceArea }) {
   });
 
   return (
-    <div className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[minmax(0,1fr)_8rem_auto_auto] md:items-end">
+    <div className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[minmax(0,1fr)_8rem_auto_auto_auto] md:items-end">
       <div>
         <Label>Area</Label>
         <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
@@ -337,6 +360,23 @@ function AreaRow({ area }: { area: ServiceArea }) {
         Active
       </label>
       <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending || draft.pincode.length !== 6}>{mutation.isPending ? <Spinner /> : "Save"}</Button>
+      <button
+        onClick={() => {
+          if (confirm(`Delete area "${area.name}"?`)) {
+            deleteServiceArea(area.id)
+              .then(() => {
+                qc.invalidateQueries({ queryKey: ["admin-service-areas"] });
+                qc.invalidateQueries({ queryKey: ["service-areas"] });
+                toast("Area deleted", "success");
+              })
+              .catch((e) => toast(errorMessage(e), "error"));
+          }
+        }}
+        className="rounded-lg p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+        aria-label={`Delete ${area.name}`}
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
       {mutation.isError && <p className="text-sm text-destructive md:col-span-4">{errorMessage(mutation.error)}</p>}
     </div>
   );

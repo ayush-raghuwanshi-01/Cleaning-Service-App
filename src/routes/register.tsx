@@ -1,22 +1,36 @@
 import { useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ApiError } from "@/lib/api";
+import { ApiError, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { toast } from "@/lib/toast";
 import { AuthLayout } from "@/components/auth/AuthLayout";
+import { GoogleButton } from "@/components/auth/GoogleButton";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Spinner } from "@/components/ui";
 
+interface RegisterSearch {
+  redirect?: string;
+}
+
 export const Route = createFileRoute("/register")({
+  validateSearch: (search: Record<string, unknown>): RegisterSearch => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
   component: RegisterPage,
 });
 
 function RegisterPage() {
   const navigate = useNavigate();
-  const { register, login } = useAuth();
+  const { redirect } = Route.useSearch();
+  const { register, login, loginWithGoogle } = useAuth();
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  function goAfterAuth() {
+    navigate({ to: redirect || "/" });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -26,9 +40,24 @@ function RegisterPage() {
       await register({ full_name: fullName, phone, password });
       // Registration does not issue tokens; log in right after.
       await login(phone, password);
-      navigate({ to: "/orders" });
+      toast("Account created — welcome!", "success");
+      goAfterAuth();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleGoogle(credential: string) {
+    setError("");
+    setLoading(true);
+    try {
+      const user = await loginWithGoogle(credential);
+      toast(`Welcome, ${user.full_name.split(" ")[0]}!`, "success");
+      goAfterAuth();
+    } catch (err) {
+      setError(errorMessage(err, "Google sign-in failed. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -57,6 +86,15 @@ function RegisterPage() {
               {loading ? <Spinner /> : "Create account"}
             </Button>
           </form>
+
+          <div className="my-4 flex items-center gap-3">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-xs font-medium text-muted-foreground">or</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
+          <GoogleButton onCredential={handleGoogle} busy={loading} />
+
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Already registered?{" "}
             <Link to="/login" className="font-semibold text-primary">Log in</Link>
