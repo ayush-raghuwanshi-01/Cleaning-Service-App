@@ -1,5 +1,5 @@
 diff --git a/.env.example b/.env.example
-index 218b480..5e373dc 100644
+index 218b4809424e0ff22527ecc8489b31e7836a1980..5e373dc6771796fa8c1af6653698546966d8b8d5 100644
 --- a/.env.example
 +++ b/.env.example
 @@ -11,3 +11,15 @@ LOG_LEVEL=INFO
@@ -18,9 +18,9 @@ index 218b480..5e373dc 100644
 +WHATSAPP_PHONE_NUMBER_ID=
 +# Internal number that receives an alert for every new website order (E.164, e.g. 919876543210).
 +WHATSAPP_ADMIN_NUMBER=
-diff --git a/alembic/versions/0004_staff_assignment.py b/alembic/versions/0004_staff_assignment.py
+diff --git a/b/alembic/versions/0004_staff_assignment.py b/alembic/versions/0004_staff_assignment.py
 new file mode 100644
-index 0000000..4f12d33
+index 0000000000000000000000000000000000000000..4f12d33f4c0c1025cfa0e63299c9ad13b2a125e0
 --- /dev/null
 +++ b/alembic/versions/0004_staff_assignment.py
 @@ -0,0 +1,62 @@
@@ -86,9 +86,9 @@ index 0000000..4f12d33
 +def downgrade() -> None:
 +    op.drop_table("order_assignments")
 +    op.drop_table("staff")
-diff --git a/alembic/versions/0005_google_auth.py b/alembic/versions/0005_google_auth.py
+diff --git a/b/alembic/versions/0005_google_auth.py b/alembic/versions/0005_google_auth.py
 new file mode 100644
-index 0000000..48f90bd
+index 0000000000000000000000000000000000000000..48f90bdc17bef710976b76206ece710dbb4cc4d9
 --- /dev/null
 +++ b/alembic/versions/0005_google_auth.py
 @@ -0,0 +1,23 @@
@@ -116,7 +116,7 @@ index 0000000..48f90bd
 +def downgrade() -> None:
 +    op.alter_column("users", "phone", existing_type=sa.String(20), nullable=False)
 diff --git a/app/api/v1/endpoints/auth.py b/app/api/v1/endpoints/auth.py
-index 1bbc841..5185b0d 100644
+index 1bbc841f613d4a65560373ef93ef1aab1881358f..5185b0d674299e803a937002b77b81c7a49065df 100644
 --- a/app/api/v1/endpoints/auth.py
 +++ b/app/api/v1/endpoints/auth.py
 @@ -5,8 +5,17 @@ from fastapi import APIRouter, Depends, status
@@ -165,7 +165,7 @@ index 1bbc841..5185b0d 100644
 +) -> User:
 +    return await update_profile(session, user, payload)
 diff --git a/app/api/v1/endpoints/business.py b/app/api/v1/endpoints/business.py
-index 74fc247..ca2895d 100644
+index 74fc247c243b9009b9af78c9be740b469bb57e1f..ca2895dc14967c76d33c2af94ef509c7a4b93d4a 100644
 --- a/app/api/v1/endpoints/business.py
 +++ b/app/api/v1/endpoints/business.py
 @@ -6,6 +6,7 @@ from sqlalchemy import select, update
@@ -236,7 +236,7 @@ index 74fc247..ca2895d 100644
 +    await session.commit()
 \ No newline at end of file
 diff --git a/app/api/v1/endpoints/orders.py b/app/api/v1/endpoints/orders.py
-index f97fce0..fe05345 100644
+index 1249bc6b923a1474ae3759a345249c2c210fc112..1d080c0c29c86d5971a757f1ce38c34355758e0d 100644
 --- a/app/api/v1/endpoints/orders.py
 +++ b/app/api/v1/endpoints/orders.py
 @@ -1,4 +1,4 @@
@@ -245,259 +245,96 @@ index f97fce0..fe05345 100644
  from decimal import Decimal
  from typing import Annotated
  from uuid import UUID
-@@ -9,40 +9,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
- from sqlalchemy.orm import selectinload
- 
- from app.api.deps import DbSession, get_current_user, require_operations
--from app.models.business import Service
--from app.models.order import (
--    Order,
--    OrderAddon,
--    OrderEvent,
--    OrderSource,
--    OrderStatus,
--    Payment,
--    PaymentMethod,
--    WhatsAppConfig,
--)
--from app.models.user import AuditLog, User
--from app.schemas.order import (
--    DayStatsResponse,
--    OrderAddonCreateRequest,
--    OrderAdminCreateRequest,
--    OrderCreateRequest,
--    OrderDetailResponse,
--    OrderStatusRequest,
--    OrderSummaryResponse,
--    OrderUpdateRequest,
--    PaymentCreateRequest,
--    PaymentResponse,
--    WhatsAppConfigInput,
--    WhatsAppConfigResponse,
--)
--from app.services.orders import (
--    add_event,
--    get_order_or_404,
--    new_order_code,
--    payment_status,
--    payment_summary,
--    transition,
--)
-+from app.models.business import Service
-+from app.models.order import (
-+    Order,
-+    OrderAddon,
-+    OrderEvent,
-+    OrderSource,
-+    OrderStatus,
-+    Payment,
-+    PaymentMethod,
-+    WhatsAppConfig,
-+)
+@@ -20,8 +20,10 @@ from app.models.order import (
+     PaymentMethod,
+     WhatsAppConfig,
+ )
 +from app.models.staff import OrderAssignment, StaffMember
-+from app.models.user import AuditLog, User
-+from app.schemas.order import (
+ from app.models.user import AuditLog, User
+ from app.schemas.order import (
 +    AssignedStaffResponse,
-+    DayStatsResponse,
-+    OrderAddonCreateRequest,
-+    OrderAdminCreateRequest,
-+    OrderCreateRequest,
-+    OrderDetailResponse,
-+    OrderStatusRequest,
-+    OrderSummaryResponse,
-+    OrderUpdateRequest,
-+    PaymentCreateRequest,
-+    PaymentResponse,
+     DayStatsResponse,
+     OrderAddonCreateRequest,
+     OrderAdminCreateRequest,
+@@ -32,9 +34,13 @@ from app.schemas.order import (
+     OrderUpdateRequest,
+     PaymentCreateRequest,
+     PaymentResponse,
 +    RescheduleRequest,
-+    WhatsAppConfigInput,
-+    WhatsAppConfigResponse,
-+)
+     WhatsAppConfigInput,
+     WhatsAppConfigResponse,
+ )
 +from app.schemas.admin import ReportResponse, ReportSummary
 +from app.schemas.staff import AssignStaffRequest
 +from app.services.notifications import notify_new_order_admin, notify_order_event
-+from app.services.orders import (
-+    add_event,
-+    get_order_or_404,
-+    new_order_code,
-+    payment_status,
-+    payment_summary,
-+    transition,
-+)
+ from app.services.orders import (
+     add_event,
+     get_order_or_404,
+@@ -43,6 +49,7 @@ from app.services.orders import (
+     payment_summary,
+     transition,
+ )
 +from app.services.staff import assign_staff
  
  public_router = APIRouter(tags=["orders"])
  customer_router = APIRouter(prefix="/orders", tags=["orders"])
-@@ -52,26 +59,29 @@ admin_router = APIRouter(prefix="/admin", tags=["orders"])
- # --------------------------------------------------------------------------- #
- # Helpers
- # --------------------------------------------------------------------------- #
--def _decorate_detail(order: Order) -> Order:
--    order.payment_status = payment_status(order)
--    order.payment_summary = payment_summary(order)
--    return order
--
--
--async def _load_order(session: AsyncSession, order_id: UUID) -> Order:
--    """Fetch an order with payments/addons/events eagerly loaded (async-safe)."""
--    order = await session.scalar(
--        select(Order)
--        .where(Order.id == order_id)
--        .options(
--            selectinload(Order.payments),
--            selectinload(Order.addons),
--            selectinload(Order.events),
--        )
--    )
--    if not order:
--        raise HTTPException(status_code=404, detail="Order not found")
--    return _decorate_detail(order)
-+def _decorate_detail(order: Order) -> Order:
-+    order.payment_status = payment_status(order)
-+    order.payment_summary = payment_summary(order)
+@@ -55,11 +62,13 @@ admin_router = APIRouter(prefix="/admin", tags=["orders"])
+ def _decorate_detail(order: Order) -> Order:
+     order.payment_status = payment_status(order)
+     order.payment_summary = payment_summary(order)
 +    # Flatten assignments into a serializable staff list for the response model.
 +    order.assigned_staff = [a.staff for a in order.assignments]
-+    return order
-+
-+
-+async def _load_order(session: AsyncSession, order_id: UUID) -> Order:
+     return order
+ 
+ 
+ async def _load_order(session: AsyncSession, order_id: UUID) -> Order:
+-    """Fetch an order with payments/addons/events eagerly loaded (async-safe)."""
 +    """Fetch an order with payments/addons/events/assignments eagerly loaded."""
-+    order = await session.scalar(
-+        select(Order)
-+        .where(Order.id == order_id)
-+        .options(
-+            selectinload(Order.payments),
-+            selectinload(Order.addons),
-+            selectinload(Order.events),
+     order = await session.scalar(
+         select(Order)
+         .where(Order.id == order_id)
+@@ -67,6 +76,7 @@ async def _load_order(session: AsyncSession, order_id: UUID) -> Order:
+             selectinload(Order.payments),
+             selectinload(Order.addons),
+             selectinload(Order.events),
 +            selectinload(Order.assignments).selectinload(OrderAssignment.staff),
-+        )
-+    )
-+    if not order:
-+        raise HTTPException(status_code=404, detail="Order not found")
-+    return _decorate_detail(order)
+         )
+     )
+     if not order:
+@@ -115,6 +125,12 @@ async def create_order(
+     if not service or not service.is_active:
+         raise HTTPException(status_code=404, detail="Service not found")
  
- 
- # --------------------------------------------------------------------------- #
-@@ -111,36 +121,44 @@ async def create_order(
-     session: DbSession,
-     user: Annotated[User, Depends(get_current_user)],
- ) -> Order:
--    service = await session.get(Service, payload.service_id)
--    if not service or not service.is_active:
--        raise HTTPException(status_code=404, detail="Service not found")
--
--    data = payload.model_dump()
--    data["service_id"] = service.id
--    data["service_name"] = service.name
--
--    order = Order(
--        order_code=new_order_code(),
--        customer_id=user.id,
--        source=OrderSource.WEBSITE,
--        status=OrderStatus.REQUESTED,
--        customer_name=user.full_name,
--        customer_phone=user.phone,
--        customer_email=user.email,
--        **data,
--    )
--    session.add(order)
--    await session.flush()
--    await add_event(
--        session,
--        order.id,
--        "order_created",
--        f"Request placed by {user.full_name} for {service.name} on {order.scheduled_date} ({order.scheduled_slot}).",
--        user,
--    )
--    session.add(AuditLog(actor_id=user.id, action="order_created", entity_type="order", entity_id=str(order.id)))
--    await session.commit()
--    return await _load_order(session, order.id)
-+    service = await session.get(Service, payload.service_id)
-+    if not service or not service.is_active:
-+        raise HTTPException(status_code=404, detail="Service not found")
-+
 +    if not user.phone:
 +        raise HTTPException(
 +            status_code=400,
 +            detail="Please add your phone number before booking.",
 +        )
 +
-+    data = payload.model_dump()
-+    data["service_id"] = service.id
-+    data["service_name"] = service.name
-+
-+    order = Order(
-+        order_code=new_order_code(),
-+        customer_id=user.id,
-+        source=OrderSource.WEBSITE,
-+        status=OrderStatus.REQUESTED,
-+        customer_name=user.full_name,
-+        customer_phone=user.phone,
-+        customer_email=user.email,
-+        **data,
-+    )
-+    session.add(order)
-+    await session.flush()
-+    await add_event(
-+        session,
-+        order.id,
-+        "order_created",
-+        f"Request placed by {user.full_name} for {service.name} on {order.scheduled_date} ({order.scheduled_slot}).",
-+        user,
-+    )
-+    session.add(AuditLog(actor_id=user.id, action="order_created", entity_type="order", entity_id=str(order.id)))
-+    await session.commit()
+     data = payload.model_dump()
+     data["service_id"] = service.id
+     data["service_name"] = service.name
+@@ -140,6 +156,8 @@ async def create_order(
+     )
+     session.add(AuditLog(actor_id=user.id, action="order_created", entity_type="order", entity_id=str(order.id)))
+     await session.commit()
 +    notify_order_event(order, "order_created")
 +    notify_new_order_admin(order)
-+    return await _load_order(session, order.id)
+     return await _load_order(session, order.id)
  
  @customer_router.get("", response_model=list[OrderSummaryResponse])
- async def my_orders(session: DbSession, user: Annotated[User, Depends(get_current_user)]) -> list[Order]:
-@@ -157,18 +175,19 @@ async def my_orders(session: DbSession, user: Annotated[User, Depends(get_curren
- async def get_my_order(
-     order_id: UUID, session: DbSession, user: Annotated[User, Depends(get_current_user)]
- ) -> Order:
--    order = await session.scalar(
--        select(Order)
--        .where(Order.id == order_id, Order.customer_id == user.id)
--        .options(
--            selectinload(Order.payments),
--            selectinload(Order.addons),
--            selectinload(Order.events),
--        )
--    )
--    if not order:
--        raise HTTPException(status_code=404, detail="Order not found")
--    return _decorate_detail(order)
-+    order = await session.scalar(
-+        select(Order)
-+        .where(Order.id == order_id, Order.customer_id == user.id)
-+        .options(
-+            selectinload(Order.payments),
-+            selectinload(Order.addons),
-+            selectinload(Order.events),
+@@ -164,6 +182,7 @@ async def get_my_order(
+             selectinload(Order.payments),
+             selectinload(Order.addons),
+             selectinload(Order.events),
 +            selectinload(Order.assignments).selectinload(OrderAssignment.staff),
-+        )
-+    )
-+    if not order:
-+        raise HTTPException(status_code=404, detail="Order not found")
-+    return _decorate_detail(order)
- 
- 
- @customer_router.post("/{order_id}/cancel", response_model=OrderDetailResponse)
-@@ -186,10 +205,48 @@ async def cancel_my_order(
+         )
      )
      if not order:
-         raise HTTPException(status_code=404, detail="Order not found")
--    await transition(session, order, OrderStatus.CANCELLED, user, "Cancelled by customer")
--    session.add(AuditLog(actor_id=user.id, action="order_cancelled", entity_type="order", entity_id=str(order.id)))
--    await session.commit()
--    return await _load_order(session, order.id)
-+    await transition(session, order, OrderStatus.CANCELLED, user, "Cancelled by customer")
-+    session.add(AuditLog(actor_id=user.id, action="order_cancelled", entity_type="order", entity_id=str(order.id)))
-+    await session.commit()
-+    return await _load_order(session, order.id)
-+
-+
+@@ -192,6 +211,44 @@ async def cancel_my_order(
+     return await _load_order(session, order.id)
+ 
+ 
 +@customer_router.post("/{order_id}/reschedule", response_model=OrderDetailResponse)
 +async def reschedule_my_order(
 +    order_id: UUID,
@@ -534,51 +371,37 @@ index f97fce0..fe05345 100644
 +    session.add(AuditLog(actor_id=user.id, action="order_rescheduled", entity_type="order", entity_id=str(order.id)))
 +    await session.commit()
 +    return await _load_order(session, order.id)
- 
- 
++
++
  # --------------------------------------------------------------------------- #
-@@ -293,11 +350,14 @@ async def set_order_status(
-     session: DbSession,
-     actor: Annotated[User, Depends(require_operations)],
- ) -> Order:
--    order = await get_order_or_404(session, order_id)
--    await transition(session, order, payload.status, actor)
--    session.add(AuditLog(actor_id=actor.id, action="order_status_changed", entity_type="order", entity_id=str(order.id)))
--    await session.commit()
--    return await _load_order(session, order.id)
-+    order = await get_order_or_404(session, order_id)
-+    await transition(session, order, payload.status, actor)
-+    session.add(AuditLog(actor_id=actor.id, action="order_status_changed", entity_type="order", entity_id=str(order.id)))
-+    await session.commit()
+ # Admin / Ops — dashboard
+ # --------------------------------------------------------------------------- #
+@@ -297,6 +354,9 @@ async def set_order_status(
+     await transition(session, order, payload.status, actor)
+     session.add(AuditLog(actor_id=actor.id, action="order_status_changed", entity_type="order", entity_id=str(order.id)))
+     await session.commit()
 +    # Notify the customer on the milestones they care about.
 +    if payload.status in (OrderStatus.CONFIRMED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED):
 +        notify_order_event(order, payload.status.value)
-+    return await _load_order(session, order.id)
+     return await _load_order(session, order.id)
  
  
- @admin_router.post("/orders/{order_id}/addons", response_model=OrderDetailResponse, status_code=status.HTTP_201_CREATED)
-@@ -349,9 +409,11 @@ async def record_payment(
-         f"Payment ₹{payload.amount} {method_label}{ref} recorded.",
-         actor,
+@@ -351,7 +411,9 @@ async def record_payment(
      )
--    session.add(AuditLog(actor_id=actor.id, action="payment_recorded", entity_type="payment", entity_id=str(payment.id)))
--    await session.commit()
+     session.add(AuditLog(actor_id=actor.id, action="payment_recorded", entity_type="payment", entity_id=str(payment.id)))
+     await session.commit()
 -    return await _load_order(session, order.id)
-+    session.add(AuditLog(actor_id=actor.id, action="payment_recorded", entity_type="payment", entity_id=str(payment.id)))
-+    await session.commit()
 +    reloaded = await _load_order(session, order.id)
 +    notify_order_event(reloaded, "payment_received")
 +    return reloaded
  
  
  @admin_router.get("/orders/{order_id}/payments", response_model=list[PaymentResponse])
-@@ -399,9 +461,132 @@ async def day_stats(
+@@ -400,6 +462,130 @@ async def day_stats(session: DbSession, actor: Annotated[User, Depends(require_o
+         by_source=by_source,
      )
  
- 
--# --------------------------------------------------------------------------- #
--# WhatsApp config
--# --------------------------------------------------------------------------- #
++
 +# --------------------------------------------------------------------------- #
 +# Reports
 +# --------------------------------------------------------------------------- #
@@ -702,15 +525,12 @@ index f97fce0..fe05345 100644
 +        await session.commit()
 +
 +
-+# --------------------------------------------------------------------------- #
-+# WhatsApp config
-+# --------------------------------------------------------------------------- #
- async def _get_whatsapp_config(session: AsyncSession) -> WhatsAppConfig:
-     cfg = await session.get(WhatsAppConfig, 1)
-     if not cfg:
-diff --git a/app/api/v1/endpoints/staff.py b/app/api/v1/endpoints/staff.py
+ # --------------------------------------------------------------------------- #
+ # WhatsApp config
+ # --------------------------------------------------------------------------- #
+diff --git a/b/app/api/v1/endpoints/staff.py b/app/api/v1/endpoints/staff.py
 new file mode 100644
-index 0000000..e55aa93
+index 0000000000000000000000000000000000000000..e55aa935f85462bb9e6650e354f28de1e0413f24
 --- /dev/null
 +++ b/app/api/v1/endpoints/staff.py
 @@ -0,0 +1,64 @@
@@ -778,9 +598,9 @@ index 0000000..e55aa93
 +    await session.delete(staff)
 +    session.add(AuditLog(actor_id=actor.id, action="staff_deleted", entity_type="staff", entity_id=str(staff_id)))
 +    await session.commit()
-diff --git a/app/api/v1/endpoints/users.py b/app/api/v1/endpoints/users.py
+diff --git a/b/app/api/v1/endpoints/users.py b/app/api/v1/endpoints/users.py
 new file mode 100644
-index 0000000..0b4bac2
+index 0000000000000000000000000000000000000000..0b4bac213cfd89e4f92446c5f51aac0fde818961
 --- /dev/null
 +++ b/app/api/v1/endpoints/users.py
 @@ -0,0 +1,88 @@
@@ -873,7 +693,7 @@ index 0000000..0b4bac2
 +    session.add(AuditLog(actor_id=actor.id, action="password_reset", entity_type="user", entity_id=str(user.id)))
 +    await session.commit()
 diff --git a/app/api/v1/router.py b/app/api/v1/router.py
-index 2738911..e2e3097 100644
+index 273891113d1e12c2dbeac4e809216c7ba8202875..e2e30972bfa553e399158ade57e98fd9e71cb724 100644
 --- a/app/api/v1/router.py
 +++ b/app/api/v1/router.py
 @@ -1,6 +1,6 @@
@@ -895,7 +715,7 @@ index 2738911..e2e3097 100644
 +api_router.include_router(users.admin_router)
 \ No newline at end of file
 diff --git a/app/core/config.py b/app/core/config.py
-index 1bd60a3..013704f 100644
+index 1bd60a3371ab5f13ad858ef6b7041e33ef81fae4..013704f8b232566546b8f1486800a9be517f7bb6 100644
 --- a/app/core/config.py
 +++ b/app/core/config.py
 @@ -18,6 +18,18 @@ class Settings(BaseSettings):
@@ -918,7 +738,7 @@ index 1bd60a3..013704f 100644
  
  @lru_cache
 diff --git a/app/models/__init__.py b/app/models/__init__.py
-index ff3b27d..6241688 100644
+index ff3b27d979975f5fe06ee090506e132dc2941e7f..62416887be49189eb24da83df16fc85d9e534b77 100644
 --- a/app/models/__init__.py
 +++ b/app/models/__init__.py
 @@ -1,4 +1,21 @@
@@ -945,44 +765,30 @@ index ff3b27d..6241688 100644
 +    "WhatsAppConfig",
 +]
 diff --git a/app/models/order.py b/app/models/order.py
-index 29826ab..02dc18e 100644
+index 29826abc8b1058b2ca50fef72cd2779cc6920677..da48df8086c4a789fd0bb817ffcdc7cfb2c60db8 100644
 --- a/app/models/order.py
 +++ b/app/models/order.py
-@@ -14,10 +14,11 @@ from sqlalchemy import (
-     Text,
-     func,
- )
--from sqlalchemy.dialects.postgresql import UUID as PGUUID
--from sqlalchemy.orm import Mapped, mapped_column, relationship
--
--from app.db.base import Base
-+from sqlalchemy.dialects.postgresql import UUID as PGUUID
-+from sqlalchemy.orm import Mapped, mapped_column, relationship
-+
-+from app.db.base import Base
+@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
+ from sqlalchemy.orm import Mapped, mapped_column, relationship
+ 
+ from app.db.base import Base
 +from app.models.staff import OrderAssignment
  
  
  # Store enum members by their .value (lowercase) so they match the DB enums
-@@ -91,9 +92,12 @@ class Order(Base):
-     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
- 
--    payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")
--    addons: Mapped[list["OrderAddon"]] = relationship(back_populates="order", cascade="all, delete-orphan")
--    events: Mapped[list["OrderEvent"]] = relationship(back_populates="order", cascade="all, delete-orphan")
-+    payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")
-+    addons: Mapped[list["OrderAddon"]] = relationship(back_populates="order", cascade="all, delete-orphan")
-+    events: Mapped[list["OrderEvent"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+@@ -94,6 +95,9 @@ class Order(Base):
+     payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+     addons: Mapped[list["OrderAddon"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+     events: Mapped[list["OrderEvent"]] = relationship(back_populates="order", cascade="all, delete-orphan")
 +    assignments: Mapped[list[OrderAssignment]] = relationship(
 +        back_populates="order", cascade="all, delete-orphan"
 +    )
  
  
  class Payment(Base):
-diff --git a/app/models/staff.py b/app/models/staff.py
+diff --git a/b/app/models/staff.py b/app/models/staff.py
 new file mode 100644
-index 0000000..245a9d0
+index 0000000000000000000000000000000000000000..245a9d091a3823f886302871e1c0c0b3fe3dfbf1
 --- /dev/null
 +++ b/app/models/staff.py
 @@ -0,0 +1,59 @@
@@ -1046,7 +852,7 @@ index 0000000..245a9d0
 +    staff: Mapped[StaffMember] = relationship(back_populates="assignments")
 +    order: Mapped["Order"] = relationship(back_populates="assignments")
 diff --git a/app/models/user.py b/app/models/user.py
-index d59bf89..23c6f76 100644
+index d59bf8939e26290a61d5f6fc6bfb05baca46b0e2..23c6f76387aa7a9842966dd55e675fbca69b7e46 100644
 --- a/app/models/user.py
 +++ b/app/models/user.py
 @@ -20,7 +20,9 @@ class UserRole(str, enum.Enum):
@@ -1060,9 +866,9 @@ index d59bf89..23c6f76 100644
      email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
      full_name: Mapped[str] = mapped_column(String(120))
      password_hash: Mapped[str] = mapped_column(String(255))
-diff --git a/app/schemas/admin.py b/app/schemas/admin.py
+diff --git a/b/app/schemas/admin.py b/app/schemas/admin.py
 new file mode 100644
-index 0000000..9ad3031
+index 0000000000000000000000000000000000000000..9ad303101cc4e33a023c7cc692531dd00916f1d3
 --- /dev/null
 +++ b/app/schemas/admin.py
 @@ -0,0 +1,53 @@
@@ -1120,7 +926,7 @@ index 0000000..9ad3031
 +    total: ReportSummary
 +    by_day: dict[str, ReportSummary]
 diff --git a/app/schemas/auth.py b/app/schemas/auth.py
-index 0568ddb..c28889a 100644
+index 0568ddb1126cdadafbe12a69872b2af6d7104c61..c28889aa5e9176e710c743dd5d48c905171f8167 100644
 --- a/app/schemas/auth.py
 +++ b/app/schemas/auth.py
 @@ -19,10 +19,22 @@ class RefreshRequest(BaseModel):
@@ -1148,69 +954,25 @@ index 0568ddb..c28889a 100644
      role: str
      is_active: bool
 diff --git a/app/schemas/order.py b/app/schemas/order.py
-index 3ab1eaa..0461c69 100644
+index 3ab1eaacb47e9d295572fd3468a9ad6d37d3b3db..c00b7c657afb8f69d90401a1cb49ec5e5cb61350 100644
 --- a/app/schemas/order.py
 +++ b/app/schemas/order.py
-@@ -26,11 +26,16 @@ class SiteInfo(BaseModel):
-     landmark: str | None = Field(default=None, max_length=160)
+@@ -33,6 +33,11 @@ class OrderCreateRequest(SiteInfo):
+     description: str | None = Field(default=None, max_length=4000)
  
  
--class OrderCreateRequest(SiteInfo):
--    service_id: UUID
--    scheduled_date: date
--    scheduled_slot: str = Field(min_length=2, max_length=60)
--    description: str | None = Field(default=None, max_length=4000)
-+class OrderCreateRequest(SiteInfo):
-+    service_id: UUID
-+    scheduled_date: date
-+    scheduled_slot: str = Field(min_length=2, max_length=60)
-+    description: str | None = Field(default=None, max_length=4000)
-+
-+
 +class RescheduleRequest(BaseModel):
 +    scheduled_date: date
 +    scheduled_slot: str = Field(min_length=2, max_length=60)
- 
- 
++
++
  # --------------------------------------------------------------------------- #
-@@ -149,40 +154,51 @@ class OrderSummaryResponse(BaseModel):
+ # Supervisor / admin intake & editing
+ # --------------------------------------------------------------------------- #
+@@ -149,6 +154,16 @@ class OrderSummaryResponse(BaseModel):
      model_config = {"from_attributes": True}
  
  
--class OrderDetailResponse(BaseModel):
--    id: UUID
--    order_code: str
--    service_id: UUID
--    service_name: str
--    source: OrderSource
--    status: OrderStatus
--    customer_name: str
--    customer_phone: str
--    customer_email: str | None
--    street: str
--    area: str
--    city: str
--    state: str
--    pincode: str
--    floor: str | None
--    landmark: str | None
--    scheduled_date: date
--    scheduled_slot: str
--    estimated_hours: Decimal | None
--    amount: Decimal | None
--    overtime_hours: Decimal | None
--    description: str | None
--    started_at: datetime | None
--    completed_at: datetime | None
--    created_at: datetime
--    updated_at: datetime
--    payments: list[PaymentResponse]
--    addons: list[OrderAddonResponse]
--    events: list[OrderEventResponse]
--    payment_status: str = "unpaid"
--    payment_summary: str = "Unpaid"
--
--    model_config = {"from_attributes": True}
 +class AssignedStaffResponse(BaseModel):
 +    id: UUID
 +    full_name: str
@@ -1221,47 +983,20 @@ index 3ab1eaa..0461c69 100644
 +    model_config = {"from_attributes": True}
 +
 +
-+class OrderDetailResponse(BaseModel):
-+    id: UUID
-+    order_code: str
-+    service_id: UUID
-+    service_name: str
-+    source: OrderSource
-+    status: OrderStatus
-+    customer_name: str
-+    customer_phone: str
-+    customer_email: str | None
-+    street: str
-+    area: str
-+    city: str
-+    state: str
-+    pincode: str
-+    floor: str | None
-+    landmark: str | None
-+    scheduled_date: date
-+    scheduled_slot: str
-+    estimated_hours: Decimal | None
-+    amount: Decimal | None
-+    overtime_hours: Decimal | None
-+    description: str | None
-+    started_at: datetime | None
-+    completed_at: datetime | None
-+    created_at: datetime
-+    updated_at: datetime
-+    payments: list[PaymentResponse]
-+    addons: list[OrderAddonResponse]
-+    events: list[OrderEventResponse]
+ class OrderDetailResponse(BaseModel):
+     id: UUID
+     order_code: str
+@@ -179,6 +194,7 @@ class OrderDetailResponse(BaseModel):
+     payments: list[PaymentResponse]
+     addons: list[OrderAddonResponse]
+     events: list[OrderEventResponse]
 +    assigned_staff: list[AssignedStaffResponse] = []
-+    payment_status: str = "unpaid"
-+    payment_summary: str = "Unpaid"
-+
-+    model_config = {"from_attributes": True}
+     payment_status: str = "unpaid"
+     payment_summary: str = "Unpaid"
  
- 
- class WhatsAppConfigResponse(BaseModel):
-diff --git a/app/schemas/staff.py b/app/schemas/staff.py
+diff --git a/b/app/schemas/staff.py b/app/schemas/staff.py
 new file mode 100644
-index 0000000..26d46c9
+index 0000000000000000000000000000000000000000..26d46c92c5819ce06fc4264610ab04f1703c0ec2
 --- /dev/null
 +++ b/app/schemas/staff.py
 @@ -0,0 +1,19 @@
@@ -1285,7 +1020,7 @@ index 0000000..26d46c9
 +class AssignStaffRequest(BaseModel):
 +    staff_ids: list[UUID] = Field(min_length=1, max_length=20)
 diff --git a/app/services/auth.py b/app/services/auth.py
-index 5865151..076066c 100644
+index 586515166922ef68742fd9b7a37f3a89204123e8..076066c83d6381d8296492aecb1e7056e65a3e06 100644
 --- a/app/services/auth.py
 +++ b/app/services/auth.py
 @@ -1,5 +1,7 @@
@@ -1373,9 +1108,9 @@ index 5865151..076066c 100644
  async def issue_tokens(session: AsyncSession, user: User, settings: Settings) -> TokenResponse:
      access_token = create_access_token(user.id, settings)
      refresh_token = create_refresh_token(user.id, settings)
-diff --git a/app/services/notifications.py b/app/services/notifications.py
+diff --git a/b/app/services/notifications.py b/app/services/notifications.py
 new file mode 100644
-index 0000000..f044e3b
+index 0000000000000000000000000000000000000000..f044e3b698bc3d059d6c776ec1862e519db3bec6
 --- /dev/null
 +++ b/app/services/notifications.py
 @@ -0,0 +1,144 @@
@@ -1523,9 +1258,9 @@ index 0000000..f044e3b
 +        logger.info("notification.admin_skipped", reason="whatsapp_admin_number not set")
 +        return
 +    _dispatch([send_text(admin_number, admin_message(order))])
-diff --git a/app/services/staff.py b/app/services/staff.py
+diff --git a/b/app/services/staff.py b/app/services/staff.py
 new file mode 100644
-index 0000000..63c7e45
+index 0000000000000000000000000000000000000000..63c7e45b245eba37b8cad8a8f75b1adf91112724
 --- /dev/null
 +++ b/app/services/staff.py
 @@ -0,0 +1,80 @@
@@ -1610,7 +1345,7 @@ index 0000000..63c7e45
 +    await session.flush()
 +    return assigned
 diff --git a/pyproject.toml b/pyproject.toml
-index a388ce2..eb6438e 100644
+index a388ce20ae7680b0198e470aa608e77645460766..eb6438e72b90abea9a1a1c918f1538f582c7ec21 100644
 --- a/pyproject.toml
 +++ b/pyproject.toml
 @@ -11,6 +11,7 @@ dependencies = [
