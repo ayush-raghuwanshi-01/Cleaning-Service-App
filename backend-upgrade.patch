@@ -1,0 +1,1623 @@
+diff --git a/.env.example b/.env.example
+index 218b480..5e373dc 100644
+--- a/.env.example
++++ b/.env.example
+@@ -11,3 +11,15 @@ LOG_LEVEL=INFO
+ # BOOTSTRAP_OWNER_PHONE=
+ # BOOTSTRAP_OWNER_EMAIL=
+ # BOOTSTRAP_OWNER_PASSWORD=
++
++# Google OAuth ("Sign in with Google"). Client ID from Google Cloud Console
++# (must match the audience of the ID token sent by the frontend).
++GOOGLE_CLIENT_ID=
++
++# WhatsApp Business Cloud API (Meta Graph API). Leave empty + notifications_enabled=false
++# to run without a provider (all notifications become log lines).
++NOTIFICATIONS_ENABLED=false
++WHATSAPP_ACCESS_TOKEN=
++WHATSAPP_PHONE_NUMBER_ID=
++# Internal number that receives an alert for every new website order (E.164, e.g. 919876543210).
++WHATSAPP_ADMIN_NUMBER=
+diff --git a/alembic/versions/0004_staff_assignment.py b/alembic/versions/0004_staff_assignment.py
+new file mode 100644
+index 0000000..4f12d33
+--- /dev/null
++++ b/alembic/versions/0004_staff_assignment.py
+@@ -0,0 +1,62 @@
++"""Staff members and order assignment (many-to-many).
++
++Revision ID: 0004_staff_assignment
++Revises: 0003_orders_payments_whatsapp
++Create Date: 2026-08-20
++"""
++
++import sqlalchemy as sa
++from sqlalchemy.dialects import postgresql
++
++from alembic import op
++
++revision = "0004_staff_assignment"
++down_revision = "0003_orders_payments_whatsapp"
++branch_labels = None
++depends_on = None
++
++
++def upgrade() -> None:
++    op.create_table(
++        "staff",
++        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
++        sa.Column("full_name", sa.String(120), nullable=False),
++        sa.Column("phone", sa.String(20), nullable=False),
++        sa.Column("skills", postgresql.JSON(astext_type=sa.Text()), nullable=True),
++        sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
++        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
++        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
++    )
++    op.create_index("ix_staff_phone", "staff", ["phone"], unique=True)
++
++    op.create_table(
++        "order_assignments",
++        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
++        sa.Column(
++            "order_id",
++            postgresql.UUID(as_uuid=True),
++            sa.ForeignKey("orders.id", ondelete="CASCADE"),
++            nullable=False,
++        ),
++        sa.Column(
++            "staff_id",
++            postgresql.UUID(as_uuid=True),
++            sa.ForeignKey("staff.id", ondelete="CASCADE"),
++            nullable=False,
++        ),
++        sa.Column(
++            "assigned_by",
++            postgresql.UUID(as_uuid=True),
++            sa.ForeignKey("users.id", ondelete="SET NULL"),
++            nullable=True,
++        ),
++        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
++        sa.UniqueConstraint("order_id", "staff_id", name="uq_order_assignments_order_staff"),
++    )
++    op.create_index("ix_order_assignments_order_id", "order_assignments", ["order_id"])
++    op.create_index("ix_order_assignments_staff_id", "order_assignments", ["staff_id"])
++
++
++def downgrade() -> None:
++    op.drop_table("order_assignments")
++    op.drop_table("staff")
+diff --git a/alembic/versions/0005_google_auth.py b/alembic/versions/0005_google_auth.py
+new file mode 100644
+index 0000000..48f90bd
+--- /dev/null
++++ b/alembic/versions/0005_google_auth.py
+@@ -0,0 +1,23 @@
++"""Allow email-only Google users: make users.phone nullable.
++
++Revision ID: 0005_google_auth
++Revises: 0004_staff_assignment
++Create Date: 2026-08-20
++"""
++
++import sqlalchemy as sa
++
++from alembic import op
++
++revision = "0005_google_auth"
++down_revision = "0004_staff_assignment"
++branch_labels = None
++depends_on = None
++
++
++def upgrade() -> None:
++    op.alter_column("users", "phone", existing_type=sa.String(20), nullable=True)
++
++
++def downgrade() -> None:
++    op.alter_column("users", "phone", existing_type=sa.String(20), nullable=False)
+diff --git a/app/api/v1/endpoints/auth.py b/app/api/v1/endpoints/auth.py
+index 1bbc841..5185b0d 100644
+--- a/app/api/v1/endpoints/auth.py
++++ b/app/api/v1/endpoints/auth.py
+@@ -5,8 +5,17 @@ from fastapi import APIRouter, Depends, status
+ from app.api.deps import DbSession, get_current_user
+ from app.core.config import Settings, get_settings
+ from app.models.user import User
+-from app.schemas.auth import LoginRequest, LogoutRequest, RefreshRequest, RegisterRequest, TokenResponse, UserResponse
+-from app.services.auth import login, logout, refresh_tokens, register_customer
++from app.schemas.auth import (
++    GoogleAuthRequest,
++    LoginRequest,
++    LogoutRequest,
++    ProfileUpdateRequest,
++    RefreshRequest,
++    RegisterRequest,
++    TokenResponse,
++    UserResponse,
++)
++from app.services.auth import google_auth, login, logout, refresh_tokens, register_customer, update_profile
+ 
+ router = APIRouter(prefix="/auth", tags=["authentication"])
+ 
+@@ -21,6 +30,11 @@ async def sign_in(payload: LoginRequest, session: DbSession, settings: Annotated
+     return await login(session, payload, settings)
+ 
+ 
++@router.post("/google", response_model=TokenResponse)
++async def google_sign_in(payload: GoogleAuthRequest, session: DbSession, settings: Annotated[Settings, Depends(get_settings)]) -> TokenResponse:
++    return await google_auth(session, payload.credential, settings)
++
++
+ @router.post("/refresh", response_model=TokenResponse)
+ async def refresh(payload: RefreshRequest, session: DbSession, settings: Annotated[Settings, Depends(get_settings)]) -> TokenResponse:
+     return await refresh_tokens(session, payload.refresh_token, settings)
+@@ -34,3 +48,12 @@ async def sign_out(payload: LogoutRequest, session: DbSession, settings: Annotat
+ @router.get("/me", response_model=UserResponse)
+ async def me(user: Annotated[User, Depends(get_current_user)]) -> User:
+     return user
++
++
++@router.patch("/me", response_model=UserResponse)
++async def update_me(
++    payload: ProfileUpdateRequest,
++    session: DbSession,
++    user: Annotated[User, Depends(get_current_user)],
++) -> User:
++    return await update_profile(session, user, payload)
+diff --git a/app/api/v1/endpoints/business.py b/app/api/v1/endpoints/business.py
+index 74fc247..ca2895d 100644
+--- a/app/api/v1/endpoints/business.py
++++ b/app/api/v1/endpoints/business.py
+@@ -6,6 +6,7 @@ from sqlalchemy import select, update
+ 
+ from app.api.deps import DbSession, get_current_user, require_operations
+ from app.models.business import Address, Service, ServiceAddon, ServiceArea
++from app.models.order import Order
+ from app.models.user import AuditLog, User
+ from app.schemas.business import AddonInput, AddonResponse, AddressInput, AddressResponse, ServiceAreaInput, ServiceAreaResponse, ServiceInput, ServiceResponse
+ 
+@@ -134,4 +135,55 @@ async def update_service_area(area_id: UUID, payload: ServiceAreaInput, session:
+     session.add(AuditLog(actor_id=actor.id, action="service_area_updated", entity_type="service_area", entity_id=str(area.id)))
+     await session.commit()
+     await session.refresh(area)
+-    return area
+\ No newline at end of file
++    return area
++
++
++@admin_router.delete("/service-areas/{area_id}", status_code=status.HTTP_204_NO_CONTENT)
++async def delete_service_area(area_id: UUID, session: DbSession, actor: Annotated[User, Depends(require_operations)]) -> None:
++    area = await session.get(ServiceArea, area_id)
++    if not area:
++        raise HTTPException(status_code=404, detail="Service area not found")
++    await session.delete(area)
++    session.add(AuditLog(actor_id=actor.id, action="service_area_deleted", entity_type="service_area", entity_id=str(area_id)))
++    await session.commit()
++
++
++@admin_router.delete("/services/{service_id}", status_code=status.HTTP_204_NO_CONTENT)
++async def delete_service(service_id: UUID, session: DbSession, actor: Annotated[User, Depends(require_operations)]) -> None:
++    service = await session.get(Service, service_id)
++    if not service:
++        raise HTTPException(status_code=404, detail="Service not found")
++    order_count = len((await session.scalars(select(Order).where(Order.service_id == service_id))).all())
++    if order_count:
++        raise HTTPException(status_code=400, detail="This service has orders; deactivate it instead of deleting.")
++    await session.delete(service)
++    session.add(AuditLog(actor_id=actor.id, action="service_deleted", entity_type="service", entity_id=str(service_id)))
++    await session.commit()
++
++
++@admin_router.get("/services/{service_id}/addons", response_model=list[AddonResponse])
++async def list_service_addons(service_id: UUID, session: DbSession, actor: Annotated[User, Depends(require_operations)]) -> list[ServiceAddon]:
++    return list((await session.scalars(select(ServiceAddon).where(ServiceAddon.service_id == service_id).order_by(ServiceAddon.name))).all())
++
++
++@admin_router.patch("/addons/{addon_id}", response_model=AddonResponse)
++async def update_addon(addon_id: UUID, payload: AddonInput, session: DbSession, actor: Annotated[User, Depends(require_operations)]) -> ServiceAddon:
++    addon = await session.get(ServiceAddon, addon_id)
++    if not addon:
++        raise HTTPException(status_code=404, detail="Add-on not found")
++    for name, value in payload.model_dump().items():
++        setattr(addon, name, value)
++    session.add(AuditLog(actor_id=actor.id, action="service_addon_updated", entity_type="service_addon", entity_id=str(addon.id)))
++    await session.commit()
++    await session.refresh(addon)
++    return addon
++
++
++@admin_router.delete("/addons/{addon_id}", status_code=status.HTTP_204_NO_CONTENT)
++async def delete_addon(addon_id: UUID, session: DbSession, actor: Annotated[User, Depends(require_operations)]) -> None:
++    addon = await session.get(ServiceAddon, addon_id)
++    if not addon:
++        raise HTTPException(status_code=404, detail="Add-on not found")
++    await session.delete(addon)
++    session.add(AuditLog(actor_id=actor.id, action="service_addon_deleted", entity_type="service_addon", entity_id=str(addon_id)))
++    await session.commit()
+\ No newline at end of file
+diff --git a/app/api/v1/endpoints/orders.py b/app/api/v1/endpoints/orders.py
+index f97fce0..fe05345 100644
+--- a/app/api/v1/endpoints/orders.py
++++ b/app/api/v1/endpoints/orders.py
+@@ -1,4 +1,4 @@
+-from datetime import UTC, date, datetime
++from datetime import UTC, date, datetime, timedelta
+ from decimal import Decimal
+ from typing import Annotated
+ from uuid import UUID
+@@ -9,40 +9,47 @@ from sqlalchemy.ext.asyncio import AsyncSession
+ from sqlalchemy.orm import selectinload
+ 
+ from app.api.deps import DbSession, get_current_user, require_operations
+-from app.models.business import Service
+-from app.models.order import (
+-    Order,
+-    OrderAddon,
+-    OrderEvent,
+-    OrderSource,
+-    OrderStatus,
+-    Payment,
+-    PaymentMethod,
+-    WhatsAppConfig,
+-)
+-from app.models.user import AuditLog, User
+-from app.schemas.order import (
+-    DayStatsResponse,
+-    OrderAddonCreateRequest,
+-    OrderAdminCreateRequest,
+-    OrderCreateRequest,
+-    OrderDetailResponse,
+-    OrderStatusRequest,
+-    OrderSummaryResponse,
+-    OrderUpdateRequest,
+-    PaymentCreateRequest,
+-    PaymentResponse,
+-    WhatsAppConfigInput,
+-    WhatsAppConfigResponse,
+-)
+-from app.services.orders import (
+-    add_event,
+-    get_order_or_404,
+-    new_order_code,
+-    payment_status,
+-    payment_summary,
+-    transition,
+-)
++from app.models.business import Service
++from app.models.order import (
++    Order,
++    OrderAddon,
++    OrderEvent,
++    OrderSource,
++    OrderStatus,
++    Payment,
++    PaymentMethod,
++    WhatsAppConfig,
++)
++from app.models.staff import OrderAssignment, StaffMember
++from app.models.user import AuditLog, User
++from app.schemas.order import (
++    AssignedStaffResponse,
++    DayStatsResponse,
++    OrderAddonCreateRequest,
++    OrderAdminCreateRequest,
++    OrderCreateRequest,
++    OrderDetailResponse,
++    OrderStatusRequest,
++    OrderSummaryResponse,
++    OrderUpdateRequest,
++    PaymentCreateRequest,
++    PaymentResponse,
++    RescheduleRequest,
++    WhatsAppConfigInput,
++    WhatsAppConfigResponse,
++)
++from app.schemas.admin import ReportResponse, ReportSummary
++from app.schemas.staff import AssignStaffRequest
++from app.services.notifications import notify_new_order_admin, notify_order_event
++from app.services.orders import (
++    add_event,
++    get_order_or_404,
++    new_order_code,
++    payment_status,
++    payment_summary,
++    transition,
++)
++from app.services.staff import assign_staff
+ 
+ public_router = APIRouter(tags=["orders"])
+ customer_router = APIRouter(prefix="/orders", tags=["orders"])
+@@ -52,26 +59,29 @@ admin_router = APIRouter(prefix="/admin", tags=["orders"])
+ # --------------------------------------------------------------------------- #
+ # Helpers
+ # --------------------------------------------------------------------------- #
+-def _decorate_detail(order: Order) -> Order:
+-    order.payment_status = payment_status(order)
+-    order.payment_summary = payment_summary(order)
+-    return order
+-
+-
+-async def _load_order(session: AsyncSession, order_id: UUID) -> Order:
+-    """Fetch an order with payments/addons/events eagerly loaded (async-safe)."""
+-    order = await session.scalar(
+-        select(Order)
+-        .where(Order.id == order_id)
+-        .options(
+-            selectinload(Order.payments),
+-            selectinload(Order.addons),
+-            selectinload(Order.events),
+-        )
+-    )
+-    if not order:
+-        raise HTTPException(status_code=404, detail="Order not found")
+-    return _decorate_detail(order)
++def _decorate_detail(order: Order) -> Order:
++    order.payment_status = payment_status(order)
++    order.payment_summary = payment_summary(order)
++    # Flatten assignments into a serializable staff list for the response model.
++    order.assigned_staff = [a.staff for a in order.assignments]
++    return order
++
++
++async def _load_order(session: AsyncSession, order_id: UUID) -> Order:
++    """Fetch an order with payments/addons/events/assignments eagerly loaded."""
++    order = await session.scalar(
++        select(Order)
++        .where(Order.id == order_id)
++        .options(
++            selectinload(Order.payments),
++            selectinload(Order.addons),
++            selectinload(Order.events),
++            selectinload(Order.assignments).selectinload(OrderAssignment.staff),
++        )
++    )
++    if not order:
++        raise HTTPException(status_code=404, detail="Order not found")
++    return _decorate_detail(order)
+ 
+ 
+ # --------------------------------------------------------------------------- #
+@@ -111,36 +121,44 @@ async def create_order(
+     session: DbSession,
+     user: Annotated[User, Depends(get_current_user)],
+ ) -> Order:
+-    service = await session.get(Service, payload.service_id)
+-    if not service or not service.is_active:
+-        raise HTTPException(status_code=404, detail="Service not found")
+-
+-    data = payload.model_dump()
+-    data["service_id"] = service.id
+-    data["service_name"] = service.name
+-
+-    order = Order(
+-        order_code=new_order_code(),
+-        customer_id=user.id,
+-        source=OrderSource.WEBSITE,
+-        status=OrderStatus.REQUESTED,
+-        customer_name=user.full_name,
+-        customer_phone=user.phone,
+-        customer_email=user.email,
+-        **data,
+-    )
+-    session.add(order)
+-    await session.flush()
+-    await add_event(
+-        session,
+-        order.id,
+-        "order_created",
+-        f"Request placed by {user.full_name} for {service.name} on {order.scheduled_date} ({order.scheduled_slot}).",
+-        user,
+-    )
+-    session.add(AuditLog(actor_id=user.id, action="order_created", entity_type="order", entity_id=str(order.id)))
+-    await session.commit()
+-    return await _load_order(session, order.id)
++    service = await session.get(Service, payload.service_id)
++    if not service or not service.is_active:
++        raise HTTPException(status_code=404, detail="Service not found")
++
++    if not user.phone:
++        raise HTTPException(
++            status_code=400,
++            detail="Please add your phone number before booking.",
++        )
++
++    data = payload.model_dump()
++    data["service_id"] = service.id
++    data["service_name"] = service.name
++
++    order = Order(
++        order_code=new_order_code(),
++        customer_id=user.id,
++        source=OrderSource.WEBSITE,
++        status=OrderStatus.REQUESTED,
++        customer_name=user.full_name,
++        customer_phone=user.phone,
++        customer_email=user.email,
++        **data,
++    )
++    session.add(order)
++    await session.flush()
++    await add_event(
++        session,
++        order.id,
++        "order_created",
++        f"Request placed by {user.full_name} for {service.name} on {order.scheduled_date} ({order.scheduled_slot}).",
++        user,
++    )
++    session.add(AuditLog(actor_id=user.id, action="order_created", entity_type="order", entity_id=str(order.id)))
++    await session.commit()
++    notify_order_event(order, "order_created")
++    notify_new_order_admin(order)
++    return await _load_order(session, order.id)
+ 
+ @customer_router.get("", response_model=list[OrderSummaryResponse])
+ async def my_orders(session: DbSession, user: Annotated[User, Depends(get_current_user)]) -> list[Order]:
+@@ -157,18 +175,19 @@ async def my_orders(session: DbSession, user: Annotated[User, Depends(get_curren
+ async def get_my_order(
+     order_id: UUID, session: DbSession, user: Annotated[User, Depends(get_current_user)]
+ ) -> Order:
+-    order = await session.scalar(
+-        select(Order)
+-        .where(Order.id == order_id, Order.customer_id == user.id)
+-        .options(
+-            selectinload(Order.payments),
+-            selectinload(Order.addons),
+-            selectinload(Order.events),
+-        )
+-    )
+-    if not order:
+-        raise HTTPException(status_code=404, detail="Order not found")
+-    return _decorate_detail(order)
++    order = await session.scalar(
++        select(Order)
++        .where(Order.id == order_id, Order.customer_id == user.id)
++        .options(
++            selectinload(Order.payments),
++            selectinload(Order.addons),
++            selectinload(Order.events),
++            selectinload(Order.assignments).selectinload(OrderAssignment.staff),
++        )
++    )
++    if not order:
++        raise HTTPException(status_code=404, detail="Order not found")
++    return _decorate_detail(order)
+ 
+ 
+ @customer_router.post("/{order_id}/cancel", response_model=OrderDetailResponse)
+@@ -186,10 +205,48 @@ async def cancel_my_order(
+     )
+     if not order:
+         raise HTTPException(status_code=404, detail="Order not found")
+-    await transition(session, order, OrderStatus.CANCELLED, user, "Cancelled by customer")
+-    session.add(AuditLog(actor_id=user.id, action="order_cancelled", entity_type="order", entity_id=str(order.id)))
+-    await session.commit()
+-    return await _load_order(session, order.id)
++    await transition(session, order, OrderStatus.CANCELLED, user, "Cancelled by customer")
++    session.add(AuditLog(actor_id=user.id, action="order_cancelled", entity_type="order", entity_id=str(order.id)))
++    await session.commit()
++    return await _load_order(session, order.id)
++
++
++@customer_router.post("/{order_id}/reschedule", response_model=OrderDetailResponse)
++async def reschedule_my_order(
++    order_id: UUID,
++    payload: RescheduleRequest,
++    session: DbSession,
++    user: Annotated[User, Depends(get_current_user)],
++) -> Order:
++    order = await session.scalar(
++        select(Order)
++        .where(Order.id == order_id, Order.customer_id == user.id)
++        .options(
++            selectinload(Order.payments),
++            selectinload(Order.addons),
++            selectinload(Order.events),
++        )
++    )
++    if not order:
++        raise HTTPException(status_code=404, detail="Order not found")
++    if order.status in (OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED, OrderStatus.CANCELLED):
++        raise HTTPException(
++            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
++            detail="This booking can no longer be rescheduled.",
++        )
++    old = f"{order.scheduled_date} ({order.scheduled_slot})"
++    order.scheduled_date = payload.scheduled_date
++    order.scheduled_slot = payload.scheduled_slot
++    await add_event(
++        session,
++        order.id,
++        "rescheduled",
++        f"Customer rescheduled from {old} to {payload.scheduled_date} ({payload.scheduled_slot}).",
++        user,
++    )
++    session.add(AuditLog(actor_id=user.id, action="order_rescheduled", entity_type="order", entity_id=str(order.id)))
++    await session.commit()
++    return await _load_order(session, order.id)
+ 
+ 
+ # --------------------------------------------------------------------------- #
+@@ -293,11 +350,14 @@ async def set_order_status(
+     session: DbSession,
+     actor: Annotated[User, Depends(require_operations)],
+ ) -> Order:
+-    order = await get_order_or_404(session, order_id)
+-    await transition(session, order, payload.status, actor)
+-    session.add(AuditLog(actor_id=actor.id, action="order_status_changed", entity_type="order", entity_id=str(order.id)))
+-    await session.commit()
+-    return await _load_order(session, order.id)
++    order = await get_order_or_404(session, order_id)
++    await transition(session, order, payload.status, actor)
++    session.add(AuditLog(actor_id=actor.id, action="order_status_changed", entity_type="order", entity_id=str(order.id)))
++    await session.commit()
++    # Notify the customer on the milestones they care about.
++    if payload.status in (OrderStatus.CONFIRMED, OrderStatus.IN_PROGRESS, OrderStatus.COMPLETED):
++        notify_order_event(order, payload.status.value)
++    return await _load_order(session, order.id)
+ 
+ 
+ @admin_router.post("/orders/{order_id}/addons", response_model=OrderDetailResponse, status_code=status.HTTP_201_CREATED)
+@@ -349,9 +409,11 @@ async def record_payment(
+         f"Payment ₹{payload.amount} {method_label}{ref} recorded.",
+         actor,
+     )
+-    session.add(AuditLog(actor_id=actor.id, action="payment_recorded", entity_type="payment", entity_id=str(payment.id)))
+-    await session.commit()
+-    return await _load_order(session, order.id)
++    session.add(AuditLog(actor_id=actor.id, action="payment_recorded", entity_type="payment", entity_id=str(payment.id)))
++    await session.commit()
++    reloaded = await _load_order(session, order.id)
++    notify_order_event(reloaded, "payment_received")
++    return reloaded
+ 
+ 
+ @admin_router.get("/orders/{order_id}/payments", response_model=list[PaymentResponse])
+@@ -399,9 +461,132 @@ async def day_stats(
+     )
+ 
+ 
+-# --------------------------------------------------------------------------- #
+-# WhatsApp config
+-# --------------------------------------------------------------------------- #
++# --------------------------------------------------------------------------- #
++# Reports
++# --------------------------------------------------------------------------- #
++@admin_router.get("/reports", response_model=ReportResponse)
++async def reports(
++    session: DbSession,
++    actor: Annotated[User, Depends(require_operations)],
++    start: Annotated[date | None, Query()] = None,
++    end: Annotated[date | None, Query()] = None,
++) -> ReportResponse:
++    end_date = end or date.today()
++    start_date = start or (end_date - timedelta(days=6))
++
++    orders = list(
++        (
++            await session.scalars(
++                select(Order)
++                .where(Order.scheduled_date >= start_date, Order.scheduled_date <= end_date)
++                .options(selectinload(Order.payments))
++            )
++        ).all()
++    )
++
++    def summarize(day_orders: list[Order]) -> ReportSummary:
++        revenue = Decimal("0")
++        upi = Decimal("0")
++        cash = Decimal("0")
++        completed = 0
++        cancelled = 0
++        for o in day_orders:
++            if o.status == OrderStatus.COMPLETED:
++                completed += 1
++            elif o.status == OrderStatus.CANCELLED:
++                cancelled += 1
++            for p in o.payments:
++                if p.status == "received":
++                    revenue += p.amount
++                    if p.method == PaymentMethod.UPI:
++                        upi += p.amount
++                    else:
++                        cash += p.amount
++        return ReportSummary(
++            orders=len(day_orders),
++            completed=completed,
++            cancelled=cancelled,
++            revenue=revenue,
++            revenue_upi=upi,
++            revenue_cash=cash,
++        )
++
++    buckets: dict[str, list[Order]] = {}
++    for o in orders:
++        buckets.setdefault(o.scheduled_date.isoformat(), []).append(o)
++
++    return ReportResponse(
++        start=start_date,
++        end=end_date,
++        total=summarize(orders),
++        by_day={k: summarize(v) for k, v in buckets.items()},
++    )
++
++
++# --------------------------------------------------------------------------- #
++# Staff assignment
++# --------------------------------------------------------------------------- #
++@admin_router.get("/orders/{order_id}/staff", response_model=list[AssignedStaffResponse])
++async def list_assigned_staff(
++    order_id: UUID, session: DbSession, actor: Annotated[User, Depends(require_operations)]
++) -> list[StaffMember]:
++    order = await session.scalar(
++        select(Order)
++        .where(Order.id == order_id)
++        .options(selectinload(Order.assignments).selectinload(OrderAssignment.staff))
++    )
++    if not order:
++        raise HTTPException(status_code=404, detail="Order not found")
++    return [a.staff for a in order.assignments]
++
++
++@admin_router.post("/orders/{order_id}/staff", response_model=OrderDetailResponse)
++async def assign_staff_to_order(
++    order_id: UUID,
++    payload: AssignStaffRequest,
++    session: DbSession,
++    actor: Annotated[User, Depends(require_operations)],
++) -> Order:
++    order = await get_order_or_404(session, order_id)
++    if order.status in (OrderStatus.COMPLETED, OrderStatus.CANCELLED):
++        raise HTTPException(status_code=400, detail="Cannot assign staff to a closed order.")
++    assigned = await assign_staff(session, order, payload.staff_ids, actor.id)
++    names = ", ".join(s.full_name for s in assigned)
++    await add_event(session, order.id, "staff_assigned", f"Assigned staff: {names}.", actor)
++    session.add(AuditLog(actor_id=actor.id, action="staff_assigned", entity_type="order", entity_id=str(order.id)))
++    await session.commit()
++    return await _load_order(session, order.id)
++
++
++@admin_router.delete("/orders/{order_id}/staff/{staff_id}", status_code=status.HTTP_204_NO_CONTENT)
++async def unassign_staff_from_order(
++    order_id: UUID,
++    staff_id: UUID,
++    session: DbSession,
++    actor: Annotated[User, Depends(require_operations)],
++) -> None:
++    assignment = await session.scalar(
++        select(OrderAssignment).where(
++            OrderAssignment.order_id == order_id, OrderAssignment.staff_id == staff_id
++        )
++    )
++    if assignment:
++        await session.delete(assignment)
++        staff = await session.get(StaffMember, staff_id)
++        await add_event(
++            session,
++            order_id,
++            "staff_unassigned",
++            f"Unassigned {staff.full_name if staff else 'staff member'}.",
++            actor,
++        )
++        session.add(AuditLog(actor_id=actor.id, action="staff_unassigned", entity_type="order", entity_id=str(order_id)))
++        await session.commit()
++
++
++# --------------------------------------------------------------------------- #
++# WhatsApp config
++# --------------------------------------------------------------------------- #
+ async def _get_whatsapp_config(session: AsyncSession) -> WhatsAppConfig:
+     cfg = await session.get(WhatsAppConfig, 1)
+     if not cfg:
+diff --git a/app/api/v1/endpoints/staff.py b/app/api/v1/endpoints/staff.py
+new file mode 100644
+index 0000000..e55aa93
+--- /dev/null
++++ b/app/api/v1/endpoints/staff.py
+@@ -0,0 +1,64 @@
++from typing import Annotated
++from uuid import UUID
++
++from fastapi import APIRouter, Depends, HTTPException, status
++from sqlalchemy import select
++
++from app.api.deps import DbSession, require_operations
++from app.models.staff import StaffMember
++from app.models.user import AuditLog, User
++from app.schemas.staff import StaffMemberInput, StaffMemberResponse
++
++admin_router = APIRouter(prefix="/admin", tags=["staff"])
++
++
++@admin_router.get("/staff", response_model=list[StaffMemberResponse])
++async def list_staff(
++    session: DbSession, actor: Annotated[User, Depends(require_operations)]
++) -> list[StaffMember]:
++    return list((await session.scalars(select(StaffMember).order_by(StaffMember.full_name))).all())
++
++
++@admin_router.post("/staff", response_model=StaffMemberResponse, status_code=status.HTTP_201_CREATED)
++async def create_staff(
++    payload: StaffMemberInput, session: DbSession, actor: Annotated[User, Depends(require_operations)]
++) -> StaffMember:
++    existing = await session.scalar(select(StaffMember).where(StaffMember.phone == payload.phone))
++    if existing:
++        raise HTTPException(status_code=409, detail="A staff member with this phone already exists")
++    staff = StaffMember(**payload.model_dump())
++    session.add(staff)
++    session.add(AuditLog(actor_id=actor.id, action="staff_created", entity_type="staff", entity_id=str(staff.id)))
++    await session.commit()
++    await session.refresh(staff)
++    return staff
++
++
++@admin_router.patch("/staff/{staff_id}", response_model=StaffMemberResponse)
++async def update_staff(
++    staff_id: UUID,
++    payload: StaffMemberInput,
++    session: DbSession,
++    actor: Annotated[User, Depends(require_operations)],
++) -> StaffMember:
++    staff = await session.get(StaffMember, staff_id)
++    if not staff:
++        raise HTTPException(status_code=404, detail="Staff member not found")
++    for name, value in payload.model_dump().items():
++        setattr(staff, name, value)
++    session.add(AuditLog(actor_id=actor.id, action="staff_updated", entity_type="staff", entity_id=str(staff.id)))
++    await session.commit()
++    await session.refresh(staff)
++    return staff
++
++
++@admin_router.delete("/staff/{staff_id}", status_code=status.HTTP_204_NO_CONTENT)
++async def delete_staff(
++    staff_id: UUID, session: DbSession, actor: Annotated[User, Depends(require_operations)]
++) -> None:
++    staff = await session.get(StaffMember, staff_id)
++    if not staff:
++        raise HTTPException(status_code=404, detail="Staff member not found")
++    await session.delete(staff)
++    session.add(AuditLog(actor_id=actor.id, action="staff_deleted", entity_type="staff", entity_id=str(staff_id)))
++    await session.commit()
+diff --git a/app/api/v1/endpoints/users.py b/app/api/v1/endpoints/users.py
+new file mode 100644
+index 0000000..0b4bac2
+--- /dev/null
++++ b/app/api/v1/endpoints/users.py
+@@ -0,0 +1,88 @@
++from typing import Annotated
++from uuid import UUID
++
++from fastapi import APIRouter, Depends, HTTPException, status
++from sqlalchemy import select
++
++from app.api.deps import DbSession, require_admin, require_operations
++from app.core.security import hash_password
++from app.models.user import AuditLog, User, UserRole
++from app.schemas.admin import (
++    AdminCreateUserRequest,
++    AdminResetPasswordRequest,
++    AdminUpdateUserRequest,
++    AdminUserResponse,
++)
++
++admin_router = APIRouter(prefix="/admin", tags=["users"])
++
++
++@admin_router.get("/users", response_model=list[AdminUserResponse])
++async def list_users(
++    session: DbSession, actor: Annotated[User, Depends(require_operations)]
++) -> list[User]:
++    return list((await session.scalars(select(User).order_by(User.created_at.desc()))).all())
++
++
++@admin_router.post("/users", response_model=AdminUserResponse, status_code=status.HTTP_201_CREATED)
++async def create_user(
++    payload: AdminCreateUserRequest,
++    session: DbSession,
++    actor: Annotated[User, Depends(require_admin)],
++) -> User:
++    existing = await session.scalar(
++        select(User).where((User.phone == payload.phone) | (User.email == payload.email))
++    )
++    if existing:
++        raise HTTPException(status_code=409, detail="A user with this phone or email already exists")
++    user = User(
++        full_name=payload.full_name,
++        phone=payload.phone,
++        email=payload.email.lower() if payload.email else None,
++        password_hash=hash_password(payload.password),
++        role=payload.role,
++    )
++    session.add(user)
++    await session.flush()
++    session.add(AuditLog(actor_id=actor.id, action="user_created", entity_type="user", entity_id=str(user.id)))
++    await session.commit()
++    await session.refresh(user)
++    return user
++
++
++@admin_router.patch("/users/{user_id}", response_model=AdminUserResponse)
++async def update_user(
++    user_id: UUID,
++    payload: AdminUpdateUserRequest,
++    session: DbSession,
++    actor: Annotated[User, Depends(require_admin)],
++) -> User:
++    user = await session.get(User, user_id)
++    if not user:
++        raise HTTPException(status_code=404, detail="User not found")
++    if user.id == actor.id and payload.is_active is False:
++        raise HTTPException(status_code=400, detail="You cannot deactivate your own account")
++    data = payload.model_dump(exclude_unset=True)
++    if "role" in data and data["role"] == UserRole.OWNER and actor.role != UserRole.OWNER:
++        raise HTTPException(status_code=403, detail="Only the owner can grant the OWNER role")
++    for name, value in data.items():
++        setattr(user, name, value)
++    session.add(AuditLog(actor_id=actor.id, action="user_updated", entity_type="user", entity_id=str(user.id)))
++    await session.commit()
++    await session.refresh(user)
++    return user
++
++
++@admin_router.post("/users/{user_id}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
++async def reset_password(
++    user_id: UUID,
++    payload: AdminResetPasswordRequest,
++    session: DbSession,
++    actor: Annotated[User, Depends(require_admin)],
++) -> None:
++    user = await session.get(User, user_id)
++    if not user:
++        raise HTTPException(status_code=404, detail="User not found")
++    user.password_hash = hash_password(payload.password)
++    session.add(AuditLog(actor_id=actor.id, action="password_reset", entity_type="user", entity_id=str(user.id)))
++    await session.commit()
+diff --git a/app/api/v1/router.py b/app/api/v1/router.py
+index 2738911..e2e3097 100644
+--- a/app/api/v1/router.py
++++ b/app/api/v1/router.py
+@@ -1,6 +1,6 @@
+ from fastapi import APIRouter
+ 
+-from app.api.v1.endpoints import auth, business, orders
++from app.api.v1.endpoints import auth, business, orders, staff, users
+ 
+ api_router = APIRouter(prefix="/api/v1")
+ api_router.include_router(auth.router)
+@@ -9,4 +9,6 @@ api_router.include_router(business.customer_router)
+ api_router.include_router(business.admin_router)
+ api_router.include_router(orders.public_router)
+ api_router.include_router(orders.customer_router)
+-api_router.include_router(orders.admin_router)
+\ No newline at end of file
++api_router.include_router(orders.admin_router)
++api_router.include_router(staff.admin_router)
++api_router.include_router(users.admin_router)
+\ No newline at end of file
+diff --git a/app/core/config.py b/app/core/config.py
+index 1bd60a3..013704f 100644
+--- a/app/core/config.py
++++ b/app/core/config.py
+@@ -18,6 +18,18 @@ class Settings(BaseSettings):
+     bootstrap_owner_phone: str | None = None
+     bootstrap_owner_email: str | None = None
+     bootstrap_owner_password: str | None = None
++    # Google OAuth (Sign in with Google). Set the client ID from the Google
++    # Cloud Console OAuth client used by the frontend.
++    google_client_id: str | None = None
++    # WhatsApp Business Cloud API (Meta Graph API) integration.
++    whatsapp_access_token: str | None = None
++    whatsapp_phone_number_id: str | None = None
++    # Internal number that receives alerts when a new website order is placed.
++    whatsapp_admin_number: str | None = None
++    # Master switch for outbound notifications. When False (default) every
++    # notification is a no-op log line, so the app is safe to run without a
++    # provider configured.
++    notifications_enabled: bool = False
+ 
+ 
+ @lru_cache
+diff --git a/app/models/__init__.py b/app/models/__init__.py
+index ff3b27d..6241688 100644
+--- a/app/models/__init__.py
++++ b/app/models/__init__.py
+@@ -1,4 +1,21 @@
+ from app.models.user import AuditLog, RefreshSession, User
+ from app.models.business import Address, Service, ServiceAddon, ServiceArea
++from app.models.order import Order, OrderAddon, OrderEvent, Payment, WhatsAppConfig
++from app.models.staff import OrderAssignment, StaffMember
+ 
+-__all__ = ["Address", "AuditLog", "RefreshSession", "Service", "ServiceAddon", "ServiceArea", "User"]
++__all__ = [
++    "Address",
++    "AuditLog",
++    "Order",
++    "OrderAddon",
++    "OrderAssignment",
++    "OrderEvent",
++    "Payment",
++    "RefreshSession",
++    "Service",
++    "ServiceAddon",
++    "ServiceArea",
++    "StaffMember",
++    "User",
++    "WhatsAppConfig",
++]
+diff --git a/app/models/order.py b/app/models/order.py
+index 29826ab..02dc18e 100644
+--- a/app/models/order.py
++++ b/app/models/order.py
+@@ -14,10 +14,11 @@ from sqlalchemy import (
+     Text,
+     func,
+ )
+-from sqlalchemy.dialects.postgresql import UUID as PGUUID
+-from sqlalchemy.orm import Mapped, mapped_column, relationship
+-
+-from app.db.base import Base
++from sqlalchemy.dialects.postgresql import UUID as PGUUID
++from sqlalchemy.orm import Mapped, mapped_column, relationship
++
++from app.db.base import Base
++from app.models.staff import OrderAssignment
+ 
+ 
+ # Store enum members by their .value (lowercase) so they match the DB enums
+@@ -91,9 +92,12 @@ class Order(Base):
+     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+ 
+-    payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+-    addons: Mapped[list["OrderAddon"]] = relationship(back_populates="order", cascade="all, delete-orphan")
+-    events: Mapped[list["OrderEvent"]] = relationship(back_populates="order", cascade="all, delete-orphan")
++    payments: Mapped[list["Payment"]] = relationship(back_populates="order", cascade="all, delete-orphan")
++    addons: Mapped[list["OrderAddon"]] = relationship(back_populates="order", cascade="all, delete-orphan")
++    events: Mapped[list["OrderEvent"]] = relationship(back_populates="order", cascade="all, delete-orphan")
++    assignments: Mapped[list[OrderAssignment]] = relationship(
++        back_populates="order", cascade="all, delete-orphan"
++    )
+ 
+ 
+ class Payment(Base):
+diff --git a/app/models/staff.py b/app/models/staff.py
+new file mode 100644
+index 0000000..245a9d0
+--- /dev/null
++++ b/app/models/staff.py
+@@ -0,0 +1,59 @@
++from datetime import datetime
++from typing import TYPE_CHECKING
++from uuid import UUID, uuid4
++
++from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, UniqueConstraint, func
++from sqlalchemy.dialects.postgresql import UUID as PGUUID
++from sqlalchemy.orm import Mapped, mapped_column, relationship
++
++from app.db.base import Base
++
++if TYPE_CHECKING:
++    from app.models.order import Order
++
++
++class StaffMember(Base):
++    """A cleaner / field-staff member who is assigned to orders.
++
++    Staff are *not* login users (that is what the User table + STAFF role is
++    for); they are the people dispatched to a job. Multiple staff can be
++    assigned to a single order ("we send staff according to work").
++    """
++
++    __tablename__ = "staff"
++
++    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
++    full_name: Mapped[str] = mapped_column(String(120), nullable=False)
++    phone: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
++    # Free-form tags for which service categories this person handles
++    # (e.g. ["express", "packages"]). Used to filter the assignment picker.
++    skills: Mapped[list | None] = mapped_column(JSON, nullable=True)
++    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
++    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
++    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
++
++    assignments: Mapped[list["OrderAssignment"]] = relationship(
++        back_populates="staff", cascade="all, delete-orphan"
++    )
++
++
++class OrderAssignment(Base):
++    """Join row: which staff are assigned to which order (many-to-many)."""
++
++    __tablename__ = "order_assignments"
++    __table_args__ = (UniqueConstraint("order_id", "staff_id", name="uq_order_assignments_order_staff"),)
++
++    id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
++    order_id: Mapped[UUID] = mapped_column(
++        PGUUID(as_uuid=True), ForeignKey("orders.id", ondelete="CASCADE"), index=True
++    )
++    staff_id: Mapped[UUID] = mapped_column(
++        PGUUID(as_uuid=True), ForeignKey("staff.id", ondelete="CASCADE"), index=True
++    )
++    assigned_by: Mapped[UUID | None] = mapped_column(
++        PGUUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
++    )
++    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
++
++    staff: Mapped[StaffMember] = relationship(back_populates="assignments")
++    order: Mapped["Order"] = relationship(back_populates="assignments")
+diff --git a/app/models/user.py b/app/models/user.py
+index d59bf89..23c6f76 100644
+--- a/app/models/user.py
++++ b/app/models/user.py
+@@ -20,7 +20,9 @@ class UserRole(str, enum.Enum):
+ class User(Base):
+     __tablename__ = "users"
+     id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), primary_key=True, default=uuid4)
+-    phone: Mapped[str] = mapped_column(String(20), unique=True, index=True)
++    # Nullable so "Sign in with Google" users (email-only) can exist before
++    # they add a phone number. Booking still requires a phone.
++    phone: Mapped[str | None] = mapped_column(String(20), unique=True, index=True, nullable=True)
+     email: Mapped[str | None] = mapped_column(String(320), unique=True, index=True, nullable=True)
+     full_name: Mapped[str] = mapped_column(String(120))
+     password_hash: Mapped[str] = mapped_column(String(255))
+diff --git a/app/schemas/admin.py b/app/schemas/admin.py
+new file mode 100644
+index 0000000..9ad3031
+--- /dev/null
++++ b/app/schemas/admin.py
+@@ -0,0 +1,53 @@
++from datetime import date, datetime
++from decimal import Decimal
++from uuid import UUID
++
++from pydantic import BaseModel, EmailStr, Field
++
++from app.models.user import UserRole
++
++
++class AdminCreateUserRequest(BaseModel):
++    full_name: str = Field(min_length=2, max_length=120)
++    phone: str = Field(pattern=r"^\+?[1-9]\d{7,14}$")
++    email: EmailStr | None = None
++    password: str = Field(min_length=12, max_length=128)
++    role: UserRole = UserRole.STAFF
++
++
++class AdminUpdateUserRequest(BaseModel):
++    full_name: str | None = Field(default=None, min_length=2, max_length=120)
++    role: UserRole | None = None
++    is_active: bool | None = None
++
++
++class AdminResetPasswordRequest(BaseModel):
++    password: str = Field(min_length=12, max_length=128)
++
++
++class AdminUserResponse(BaseModel):
++    id: UUID
++    full_name: str
++    phone: str
++    email: EmailStr | None
++    role: UserRole
++    is_active: bool
++    created_at: datetime
++
++    model_config = {"from_attributes": True}
++
++
++class ReportSummary(BaseModel):
++    orders: int
++    completed: int
++    cancelled: int
++    revenue: Decimal
++    revenue_upi: Decimal
++    revenue_cash: Decimal
++
++
++class ReportResponse(BaseModel):
++    start: date
++    end: date
++    total: ReportSummary
++    by_day: dict[str, ReportSummary]
+diff --git a/app/schemas/auth.py b/app/schemas/auth.py
+index 0568ddb..c28889a 100644
+--- a/app/schemas/auth.py
++++ b/app/schemas/auth.py
+@@ -19,10 +19,22 @@ class RefreshRequest(BaseModel):
+     refresh_token: str
+ 
+ 
++class GoogleAuthRequest(BaseModel):
++    """The `credential` field is the JWT ID token returned by Google Identity
++    Services (`google.accounts.id.credential`) on the frontend."""
++
++    credential: str = Field(min_length=20)
++
++
++class ProfileUpdateRequest(BaseModel):
++    full_name: str | None = Field(default=None, min_length=2, max_length=120)
++    phone: str | None = Field(default=None, pattern=r"^\+?[1-9]\d{7,14}$")
++
++
+ class UserResponse(BaseModel):
+     id: UUID
+     full_name: str
+-    phone: str
++    phone: str | None
+     email: EmailStr | None
+     role: str
+     is_active: bool
+diff --git a/app/schemas/order.py b/app/schemas/order.py
+index 3ab1eaa..0461c69 100644
+--- a/app/schemas/order.py
++++ b/app/schemas/order.py
+@@ -26,11 +26,16 @@ class SiteInfo(BaseModel):
+     landmark: str | None = Field(default=None, max_length=160)
+ 
+ 
+-class OrderCreateRequest(SiteInfo):
+-    service_id: UUID
+-    scheduled_date: date
+-    scheduled_slot: str = Field(min_length=2, max_length=60)
+-    description: str | None = Field(default=None, max_length=4000)
++class OrderCreateRequest(SiteInfo):
++    service_id: UUID
++    scheduled_date: date
++    scheduled_slot: str = Field(min_length=2, max_length=60)
++    description: str | None = Field(default=None, max_length=4000)
++
++
++class RescheduleRequest(BaseModel):
++    scheduled_date: date
++    scheduled_slot: str = Field(min_length=2, max_length=60)
+ 
+ 
+ # --------------------------------------------------------------------------- #
+@@ -149,40 +154,51 @@ class OrderSummaryResponse(BaseModel):
+     model_config = {"from_attributes": True}
+ 
+ 
+-class OrderDetailResponse(BaseModel):
+-    id: UUID
+-    order_code: str
+-    service_id: UUID
+-    service_name: str
+-    source: OrderSource
+-    status: OrderStatus
+-    customer_name: str
+-    customer_phone: str
+-    customer_email: str | None
+-    street: str
+-    area: str
+-    city: str
+-    state: str
+-    pincode: str
+-    floor: str | None
+-    landmark: str | None
+-    scheduled_date: date
+-    scheduled_slot: str
+-    estimated_hours: Decimal | None
+-    amount: Decimal | None
+-    overtime_hours: Decimal | None
+-    description: str | None
+-    started_at: datetime | None
+-    completed_at: datetime | None
+-    created_at: datetime
+-    updated_at: datetime
+-    payments: list[PaymentResponse]
+-    addons: list[OrderAddonResponse]
+-    events: list[OrderEventResponse]
+-    payment_status: str = "unpaid"
+-    payment_summary: str = "Unpaid"
+-
+-    model_config = {"from_attributes": True}
++class AssignedStaffResponse(BaseModel):
++    id: UUID
++    full_name: str
++    phone: str
++    skills: list[str] | None = None
++    is_active: bool
++
++    model_config = {"from_attributes": True}
++
++
++class OrderDetailResponse(BaseModel):
++    id: UUID
++    order_code: str
++    service_id: UUID
++    service_name: str
++    source: OrderSource
++    status: OrderStatus
++    customer_name: str
++    customer_phone: str
++    customer_email: str | None
++    street: str
++    area: str
++    city: str
++    state: str
++    pincode: str
++    floor: str | None
++    landmark: str | None
++    scheduled_date: date
++    scheduled_slot: str
++    estimated_hours: Decimal | None
++    amount: Decimal | None
++    overtime_hours: Decimal | None
++    description: str | None
++    started_at: datetime | None
++    completed_at: datetime | None
++    created_at: datetime
++    updated_at: datetime
++    payments: list[PaymentResponse]
++    addons: list[OrderAddonResponse]
++    events: list[OrderEventResponse]
++    assigned_staff: list[AssignedStaffResponse] = []
++    payment_status: str = "unpaid"
++    payment_summary: str = "Unpaid"
++
++    model_config = {"from_attributes": True}
+ 
+ 
+ class WhatsAppConfigResponse(BaseModel):
+diff --git a/app/schemas/staff.py b/app/schemas/staff.py
+new file mode 100644
+index 0000000..26d46c9
+--- /dev/null
++++ b/app/schemas/staff.py
+@@ -0,0 +1,19 @@
++from uuid import UUID
++
++from pydantic import BaseModel, Field
++
++
++class StaffMemberInput(BaseModel):
++    full_name: str = Field(min_length=2, max_length=120)
++    phone: str = Field(pattern=r"^\+?[1-9]\d{7,14}$")
++    skills: list[str] | None = None
++    is_active: bool = True
++
++
++class StaffMemberResponse(StaffMemberInput):
++    id: UUID
++    model_config = {"from_attributes": True}
++
++
++class AssignStaffRequest(BaseModel):
++    staff_ids: list[UUID] = Field(min_length=1, max_length=20)
+diff --git a/app/services/auth.py b/app/services/auth.py
+index 5865151..076066c 100644
+--- a/app/services/auth.py
++++ b/app/services/auth.py
+@@ -1,5 +1,7 @@
+ from datetime import UTC, datetime, timedelta
++from secrets import token_urlsafe
+ 
++import httpx
+ from fastapi import HTTPException, status
+ from sqlalchemy import or_, select
+ from sqlalchemy.ext.asyncio import AsyncSession
+@@ -7,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
+ from app.core.config import Settings
+ from app.core.security import create_access_token, create_refresh_token, decode_token, hash_password, token_fingerprint, verify_password
+ from app.models.user import AuditLog, RefreshSession, User, UserRole
+-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
++from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest, TokenResponse
+ 
+ 
+ async def register_customer(session: AsyncSession, payload: RegisterRequest) -> User:
+@@ -26,6 +28,67 @@ async def register_customer(session: AsyncSession, payload: RegisterRequest) ->
+     return user
+ 
+ 
++async def google_auth(session: AsyncSession, credential: str, settings: Settings) -> TokenResponse:
++    """Exchange a Google ID token for a session (sign-in or auto sign-up)."""
++
++    if not settings.google_client_id:
++        raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED, detail="Google sign-in is not configured")
++
++    try:
++        async with httpx.AsyncClient(timeout=10) as client:
++            resp = await client.get(
++                "https://oauth2.googleapis.com/tokeninfo", params={"id_token": credential}
++            )
++        info = resp.json() if resp.status_code == 200 else {}
++    except httpx.HTTPError as exc:
++        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not verify Google credential") from exc
++
++    if info.get("aud") != settings.google_client_id:
++        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Google credential")
++    email = (info.get("email") or "").lower()
++    if not email or info.get("email_verified") not in (True, "true", "True"):
++        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Google account email not verified")
++
++    name = (info.get("name") or "").strip() or email.split("@")[0]
++
++    result = await session.execute(select(User).where(User.email == email))
++    user = result.scalar_one_or_none()
++    if user is None:
++        user = User(
++            full_name=name,
++            phone=None,
++            email=email,
++            password_hash=hash_password(token_urlsafe(32)),  # passwordless; login is via Google
++            role=UserRole.CUSTOMER,
++        )
++        session.add(user)
++        await session.flush()
++        session.add(AuditLog(actor_id=user.id, action="google_signup", entity_type="user", entity_id=str(user.id)))
++        await session.commit()
++        await session.refresh(user)
++    elif not user.is_active:
++        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account is disabled")
++
++    session.add(AuditLog(actor_id=user.id, action="google_login", entity_type="user", entity_id=str(user.id)))
++    return await issue_tokens(session, user, settings)
++
++
++async def update_profile(session: AsyncSession, user: User, payload: ProfileUpdateRequest) -> User:
++    if payload.full_name is not None:
++        user.full_name = payload.full_name
++    if payload.phone is not None:
++        existing = await session.scalar(
++            select(User).where(User.phone == payload.phone, User.id != user.id)
++        )
++        if existing:
++            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Phone number already in use")
++        user.phone = payload.phone
++    session.add(AuditLog(actor_id=user.id, action="profile_updated", entity_type="user", entity_id=str(user.id)))
++    await session.commit()
++    await session.refresh(user)
++    return user
++
++
+ async def issue_tokens(session: AsyncSession, user: User, settings: Settings) -> TokenResponse:
+     access_token = create_access_token(user.id, settings)
+     refresh_token = create_refresh_token(user.id, settings)
+diff --git a/app/services/notifications.py b/app/services/notifications.py
+new file mode 100644
+index 0000000..f044e3b
+--- /dev/null
++++ b/app/services/notifications.py
+@@ -0,0 +1,144 @@
++"""Outbound customer notifications (WhatsApp Business Cloud API).
++
++Every send is best-effort and non-blocking: a failure to deliver a message must
++never fail the API request that triggered it. When `notifications_enabled` is
++False (the default) or credentials are missing, sends degrade to a structured
++log line so the app remains safe to run without a provider.
++
++The provider is Meta's WhatsApp Cloud API (Graph API v20.0):
++    POST https://graph.facebook.com/v20.0/{phone_number_id}/messages
++"""
++
++import asyncio
++import logging
++
++import httpx
++import structlog
++
++from app.core.config import get_settings
++from app.models.order import Order
++
++logger = structlog.get_logger(__name__)
++graph_logger = logging.getLogger("notifications")
++
++GRAPH_VERSION = "v20.0"
++GRAPH_URL = f"https://graph.facebook.com/{GRAPH_VERSION}"
++
++
++def _e164(phone: str) -> str:
++    """Normalize a phone number to E.164. Assumes Indian 10-digit numbers."""
++    digits = "".join(ch for ch in phone if ch.isdigit())
++    if digits.startswith("91") and len(digits) == 12:
++        return digits
++    if len(digits) == 10:
++        return "91" + digits
++    return digits
++
++
++def _settings() -> tuple[bool, str | None, str | None]:
++    s = get_settings()
++    return s.notifications_enabled, s.whatsapp_access_token, s.whatsapp_phone_number_id
++
++
++async def send_text(to_phone: str, message: str) -> bool:
++    """Send a free-form text message. Returns True on success."""
++
++    enabled, token, phone_number_id = _settings()
++    if not enabled or not token or not phone_number_id:
++        logger.info("notification.skipped", to=_e164(to_phone), reason="notifications disabled or unconfigured")
++        return False
++
++    url = f"{GRAPH_URL}/{phone_number_id}/messages"
++    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
++    payload = {
++        "messaging_product": "whatsapp",
++        "to": _e164(to_phone),
++        "type": "text",
++        "text": {"body": message},
++    }
++    try:
++        async with httpx.AsyncClient(timeout=10) as client:
++            resp = await client.post(url, headers=headers, json=payload)
++        resp.raise_for_status()
++        logger.info("notification.sent", to=_e164(to_phone))
++        return True
++    except httpx.HTTPError as exc:  # network or 4xx/5xx
++        logger.warning("notification.failed", to=_e164(to_phone), error=str(exc))
++        return False
++
++
++# --------------------------------------------------------------------------- #
++# Message templates
++# --------------------------------------------------------------------------- #
++def customer_messages(order: Order, event: str) -> str | None:
++    brand = "Home Shine"
++    name = order.customer_name.split(" ")[0]
++    service = order.service_name
++    code = order.order_code
++    slot = order.scheduled_slot
++
++    if event == "order_created":
++        return (
++            f"Hi {name}, thanks for booking *{service}* with {brand}. "
++            f"We'll call you shortly to confirm your slot. Your booking code is {code}."
++        )
++    if event == "confirmed":
++        return (
++            f"Hi {name}, your {brand} booking *{code}* for {service} on "
++            f"{order.scheduled_date} ({slot}) is confirmed. We'll see you then!"
++        )
++    if event == "in_progress":
++        return f"Hi {name}, our team is on the way for your {service} appointment ({slot})."
++    if event == "completed":
++        return (
++            f"Hi {name}, your {service} with {brand} is complete. "
++            f"Thank you for choosing us — we'd love your feedback!"
++        )
++    if event == "payment_received":
++        received = sum((p.amount for p in order.payments if p.status == "received"), 0)
++        return f"Hi {name}, payment of ₹{received} received for booking {code}. Thank you!"
++    return None
++
++
++def admin_message(order: Order) -> str:
++    return (
++        f"🆕 New website order *{order.order_code}*\n"
++        f"{order.service_name}\n"
++        f"👤 {order.customer_name} ({order.customer_phone})\n"
++        f"📅 {order.scheduled_date} · {order.scheduled_slot}\n"
++        f"📍 {order.street}, {order.area}, {order.pincode}"
++    )
++
++
++# --------------------------------------------------------------------------- #
++# Fire-and-forget dispatcher
++# --------------------------------------------------------------------------- #
++def _dispatch(coros: list) -> None:
++    async def run_all():
++        await asyncio.gather(*coros, return_exceptions=True)
++
++    try:
++        loop = asyncio.get_running_loop()
++        loop.create_task(run_all())
++    except RuntimeError:
++        # No running loop (e.g. some test harnesses) — just drop the message.
++        logger.info("notification.dropped", reason="no event loop")
++
++
++def notify_order_event(order: Order, event: str) -> None:
++    """Notify the customer about an order event (best-effort)."""
++
++    message = customer_messages(order, event)
++    if not message:
++        return
++    _dispatch([send_text(order.customer_phone, message)])
++
++
++def notify_new_order_admin(order: Order) -> None:
++    """Alert the internal admin number when a website order comes in."""
++
++    admin_number = get_settings().whatsapp_admin_number
++    if not admin_number:
++        logger.info("notification.admin_skipped", reason="whatsapp_admin_number not set")
++        return
++    _dispatch([send_text(admin_number, admin_message(order))])
+diff --git a/app/services/staff.py b/app/services/staff.py
+new file mode 100644
+index 0000000..63c7e45
+--- /dev/null
++++ b/app/services/staff.py
+@@ -0,0 +1,80 @@
++"""Staff management and order-assignment business logic.
++
++The capacity rule for this business is "we send staff according to work", so an
++order can carry any number of staff. The only hard constraint is that a single
++staff member cannot be dispatched to two jobs at the same time — enforced here
++as a conflict on (scheduled_date, scheduled_slot).
++"""
++
++from uuid import UUID
++
++from fastapi import HTTPException, status
++from sqlalchemy import select
++from sqlalchemy.ext.asyncio import AsyncSession
++
++from app.models.order import Order, OrderStatus
++from app.models.staff import OrderAssignment, StaffMember
++
++
++async def get_staff_or_404(session: AsyncSession, staff_id: UUID) -> StaffMember:
++    staff = await session.get(StaffMember, staff_id)
++    if not staff:
++        raise HTTPException(status_code=404, detail="Staff member not found")
++    return staff
++
++
++async def _busy_order_ids(session: AsyncSession, staff_id: UUID, date, slot: str) -> list[UUID]:
++    """Return the ids of active orders this staff member is already on for the
++    same date and slot (the double-booking check)."""
++
++    stmt = (
++        select(Order.id)
++        .join(OrderAssignment, OrderAssignment.order_id == Order.id)
++        .where(
++            OrderAssignment.staff_id == staff_id,
++            Order.scheduled_date == date,
++            Order.scheduled_slot == slot,
++            Order.status.notin_([OrderStatus.CANCELLED, OrderStatus.COMPLETED]),
++        )
++    )
++    return list((await session.scalars(stmt)).all())
++
++
++async def assert_staff_available(
++    session: AsyncSession, staff_id: UUID, date, slot: str, ignore_order_id: UUID | None = None
++) -> None:
++    busy = await _busy_order_ids(session, staff_id, date, slot)
++    busy = [o for o in busy if o != ignore_order_id]
++    if busy:
++        raise HTTPException(
++            status_code=status.HTTP_409_CONFLICT,
++            detail="This staff member is already assigned to another job at the same time.",
++        )
++
++
++async def assign_staff(
++    session: AsyncSession,
++    order: Order,
++    staff_ids: list[UUID],
++    actor_id: UUID | None = None,
++) -> list[StaffMember]:
++    """Assign one or more staff to an order, rejecting double-bookings."""
++
++    assigned: list[StaffMember] = []
++    for staff_id in staff_ids:
++        staff = await get_staff_or_404(session, staff_id)
++        if not staff.is_active:
++            raise HTTPException(status_code=400, detail=f"{staff.full_name} is inactive.")
++        await assert_staff_available(session, staff_id, order.scheduled_date, order.scheduled_slot)
++        existing = await session.scalar(
++            select(OrderAssignment).where(
++                OrderAssignment.order_id == order.id, OrderAssignment.staff_id == staff_id
++            )
++        )
++        if not existing:
++            session.add(
++                OrderAssignment(order_id=order.id, staff_id=staff_id, assigned_by=actor_id)
++            )
++        assigned.append(staff)
++    await session.flush()
++    return assigned
+diff --git a/pyproject.toml b/pyproject.toml
+index a388ce2..eb6438e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -11,6 +11,7 @@ dependencies = [
+   "alembic>=1.14,<2",
+   "asyncpg>=0.30,<1",
+   "fastapi>=0.115,<1",
++  "httpx>=0.27,<1",
+   "email-validator>=2.2,<3",
+   "passlib[argon2]>=1.7.4,<2",
+   "pydantic-settings>=2.6,<3",
