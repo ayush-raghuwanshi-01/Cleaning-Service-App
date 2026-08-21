@@ -5,8 +5,18 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import { fetchServices } from "@/lib/services-api";
 import { inr, durationLabel } from "@/lib/format";
+import { BRAND_CITY, BRAND_NAME } from "@/lib/config";
 
 export const Route = createFileRoute("/pricing")({
+  head: () => ({
+    meta: [
+      { title: `Cleaning Service Prices in Bhopal — ${BRAND_NAME}` },
+      {
+        name: "description",
+        content: `Transparent starting prices for home cleaning, deep cleaning, housekeeping and car wash in ${BRAND_CITY}. Final price confirmed before work starts.`,
+      },
+    ],
+  }),
   component: PricingPage,
 });
 

@@ -14,6 +14,7 @@ import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input, Label, 
 import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL, type OrderAddonType, type OrderDetail, type OrderStatus, type PaymentMethod } from "@/types";
 import { formatDateTime, inr } from "@/lib/format";
 import { ApiError } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 
 export const Route = createFileRoute("/admin/orders/$orderId")({
   component: AdminOrderDetail,
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/admin/orders/$orderId")({
 function AdminOrderDetail() {
   const { orderId } = Route.useParams();
   const qc = useQueryClient();
+  const toast = useToast();
   const { data: order, isLoading } = useQuery({
     queryKey: ["admin-order", orderId],
     queryFn: () => fetchAdminOrder(orderId),
@@ -43,7 +45,11 @@ function AdminOrderDetail() {
 
   const statusMutation = useMutation({
     mutationFn: (status: OrderStatus) => setOrderStatus(orderId, status),
-    onSuccess: invalidate,
+    onSuccess: (_data, status) => {
+      toast.success(`Status updated`, `Order moved to "${ORDER_STATUS_LABEL[status]}".`);
+      invalidate();
+    },
+    onError: (err) => toast.error("Could not update status", err instanceof ApiError ? err.message : undefined),
   });
 
   const paymentMutation = useMutation({
@@ -57,8 +63,10 @@ function AdminOrderDetail() {
     onSuccess: () => {
       setAmount("");
       setReference("");
+      toast.success("Payment recorded");
       invalidate();
     },
+    onError: (err) => toast.error("Could not record payment", err instanceof ApiError ? err.message : undefined),
   });
 
   const addonMutation = useMutation({
@@ -66,13 +74,10 @@ function AdminOrderDetail() {
     onSuccess: () => {
       setAddonPrice("");
       setAddonQuantity("1");
+      toast.success("Add-on added");
       invalidate();
     },
-  });
-
-  const markStartedMutation = useMutation({
-    mutationFn: () => updateOrder(orderId, { started_at: new Date().toISOString() }),
-    onSuccess: invalidate,
+    onError: (err) => toast.error("Could not add add-on", err instanceof ApiError ? err.message : undefined),
   });
 
   const [assignStaffId, setAssignStaffId] = useState("");
@@ -80,8 +85,10 @@ function AdminOrderDetail() {
     mutationFn: () => assignStaffToOrder(orderId, assignStaffId),
     onSuccess: () => {
       setAssignStaffId("");
+      toast.success("Staff assigned", "Customer will be notified about the cleaner.");
       invalidate();
     },
+    onError: (err) => toast.error("Could not assign staff", err instanceof ApiError ? err.message : undefined),
   });
 
   if (isLoading) return <PageLoader />;
@@ -92,7 +99,7 @@ function AdminOrderDetail() {
 
   return (
     <div>
-      <Link to="/admin/orders" className="text-xs font-semibold text-muted-foreground">← Orders</Link>
+      <Link to="/admin/orders" search={{ status: undefined }} className="text-xs font-semibold text-muted-foreground">← Orders</Link>
       <div className="mt-2 flex items-center gap-3">
         <h1 className="font-display text-2xl font-bold">{order.service_name}</h1>
         <Badge className="bg-primary/10 text-primary">{order.order_code}</Badge>
@@ -147,9 +154,6 @@ function AdminOrderDetail() {
                 Move to {ORDER_STATUS_LABEL[nextStatus]}
               </Button>
             )}
-            <Button variant="outline" className="w-full" onClick={() => markStartedMutation.mutate()} disabled={markStartedMutation.isPending}>
-              Mark started
-            </Button>
             <div className="flex gap-2">
               <a
                 href={`tel:${order.customer_phone}`}
@@ -202,7 +206,7 @@ function AdminOrderDetail() {
           {order.staff_assignments && order.staff_assignments.length > 0 && (
             <div className="mt-4 space-y-2 text-sm">
               <p className="font-semibold text-muted-foreground">Assigned staff:</p>
-              {order.staff_assignments.map((a: any) => (
+              {order.staff_assignments.map((a: import("@/types").StaffAssignment) => (
                 <div key={a.id} className="flex items-center justify-between rounded-lg bg-secondary px-3 py-2">
                   <span>{a.staff_name || a.staff_id}</span>
                   <span className="text-xs text-muted-foreground">
@@ -324,7 +328,9 @@ function OrderEditForm({ order, onSaved }: { order: OrderDetail; onSaved: () => 
       amount: finalAmount ? Number(finalAmount) : null,
       description: notes || null,
     }),
-    onSuccess: onSaved,
+    onSuccess: () => {
+      onSaved();
+    },
   });
 
   return (

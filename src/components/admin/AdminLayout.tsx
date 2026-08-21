@@ -9,6 +9,7 @@ import {
   Menu,
   X,
   Users,
+  UserCog,
   BarChart3,
   ClipboardList,
 } from "lucide-react";
@@ -18,9 +19,10 @@ import { BRAND_NAME } from "@/lib/config";
 const NAV = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { to: "/admin/orders", label: "Orders", icon: ListOrdered },
+  { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/new", label: "Add order", icon: PlusCircle },
   { to: "/admin/catalog", label: "Catalog", icon: Settings },
-  { to: "/admin/staff", label: "Staff", icon: Users },
+  { to: "/admin/staff", label: "Staff", icon: UserCog },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/audit-log", label: "Audit Log", icon: ClipboardList },
   { to: "/admin/settings", label: "Settings", icon: Settings },

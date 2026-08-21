@@ -17,7 +17,6 @@ import {
   PhoneCall,
   CheckCircle2,
 } from "lucide-react";
-import type { DashboardAlerts } from "@/lib/admin-api";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
@@ -79,6 +78,7 @@ function AdminDashboard() {
               </span>
               <Link
                 to="/admin/orders"
+                search={{ status: undefined }}
                 className="ml-auto flex items-center gap-1 text-xs text-amber-700 underline"
               >
                 View orders <ArrowRight className="h-3 w-3" />
@@ -93,7 +93,8 @@ function AdminDashboard() {
                 {alerts.overdue_payments > 1 ? "s" : ""}
               </span>
               <Link
-                to="/admin/orders?status=completed"
+                to="/admin/orders"
+                search={{ status: "completed" }}
                 className="ml-auto flex items-center gap-1 text-xs text-red-700 underline"
               >
                 View completed <ArrowRight className="h-3 w-3" />
@@ -110,6 +111,13 @@ function AdminDashboard() {
           className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
         >
           <PhoneCall className="h-4 w-4" /> Add Order
+        </Link>
+        <Link
+          to="/admin/orders"
+          search={{ status: "requested" }}
+          className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-semibold text-muted-foreground hover:bg-secondary/80"
+        >
+          <Clock className="h-4 w-4" /> New Bookings
         </Link>
         <Link
           to="/admin/staff"

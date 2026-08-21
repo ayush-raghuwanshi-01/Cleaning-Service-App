@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /register
+Disallow: /orders
+
+Sitemap: https://homeshine.example.com/sitemap.xml

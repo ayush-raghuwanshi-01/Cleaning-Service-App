@@ -13,12 +13,11 @@ export const Route = createFileRoute("/admin/analytics")({
 function AdminAnalytics() {
   const today = todayISO();
   const weekAgo = getPastDate(7);
-  const monthAgo = getPastDate(30);
 
   const [startDate, setStartDate] = useState(weekAgo);
   const [endDate, setEndDate] = useState(today);
 
-  const { data: stats, isLoading: statsLoading } = useQuery({
+  const { data: stats } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: () => fetchDayStats(),
   });

@@ -19,6 +19,7 @@ import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 import { Route as AdminAuditLogRouteImport } from './routes/admin.audit-log'
 import { Route as AdminCatalogRouteImport } from './routes/admin.catalog'
+import { Route as AdminCustomersRouteImport } from './routes/admin.customers'
 import { Route as AdminNewRouteImport } from './routes/admin.new'
 import { Route as AdminOrdersRouteImport } from './routes/admin.orders'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
@@ -27,8 +28,10 @@ import { Route as OrdersIndexRouteImport } from './routes/orders.index'
 import { Route as OrdersOrderIdRouteImport } from './routes/orders.$orderId'
 import { Route as ServicesIndexRouteImport } from './routes/services.index'
 import { Route as ServicesServiceIdRouteImport } from './routes/services.$serviceId'
+import { Route as TrackIndexRouteImport } from './routes/track.index'
 import { Route as TrackOrderCodeRouteImport } from './routes/track.$orderCode'
 import { Route as AdminOrdersOrderIdRouteImport } from './routes/admin.orders.$orderId'
+import { Route as OrdersOrderIdInvoiceRouteImport } from './routes/orders.$orderId.invoice'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -80,6 +83,11 @@ const AdminCatalogRoute = AdminCatalogRouteImport.update({
   path: '/catalog',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCustomersRoute = AdminCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminNewRoute = AdminNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -120,6 +128,11 @@ const ServicesServiceIdRoute = ServicesServiceIdRouteImport.update({
   path: '/services/$serviceId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TrackIndexRoute = TrackIndexRouteImport.update({
+  id: '/track/',
+  path: '/track/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TrackOrderCodeRoute = TrackOrderCodeRouteImport.update({
   id: '/track/$orderCode',
   path: '/track/$orderCode',
@@ -129,6 +142,11 @@ const AdminOrdersOrderIdRoute = AdminOrdersOrderIdRouteImport.update({
   id: '/$orderId',
   path: '/$orderId',
   getParentRoute: () => AdminOrdersRoute,
+} as any)
+const OrdersOrderIdInvoiceRoute = OrdersOrderIdInvoiceRouteImport.update({
+  id: '/invoice',
+  path: '/invoice',
+  getParentRoute: () => OrdersOrderIdRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -141,17 +159,20 @@ export interface FileRoutesByFullPath {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/catalog': typeof AdminCatalogRoute
+  '/admin/customers': typeof AdminCustomersRoute
   '/admin/new': typeof AdminNewRoute
   '/admin/orders': typeof AdminOrdersRouteWithChildren
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
-  '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/$orderId': typeof OrdersOrderIdRouteWithChildren
   '/services/$serviceId': typeof ServicesServiceIdRoute
   '/track/$orderCode': typeof TrackOrderCodeRoute
   '/admin/': typeof AdminIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/services/': typeof ServicesIndexRoute
+  '/track/': typeof TrackIndexRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
+  '/orders/$orderId/invoice': typeof OrdersOrderIdInvoiceRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -162,17 +183,20 @@ export interface FileRoutesByTo {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/catalog': typeof AdminCatalogRoute
+  '/admin/customers': typeof AdminCustomersRoute
   '/admin/new': typeof AdminNewRoute
   '/admin/orders': typeof AdminOrdersRouteWithChildren
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
-  '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/$orderId': typeof OrdersOrderIdRouteWithChildren
   '/services/$serviceId': typeof ServicesServiceIdRoute
   '/track/$orderCode': typeof TrackOrderCodeRoute
   '/admin': typeof AdminIndexRoute
   '/orders': typeof OrdersIndexRoute
   '/services': typeof ServicesIndexRoute
+  '/track': typeof TrackIndexRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
+  '/orders/$orderId/invoice': typeof OrdersOrderIdInvoiceRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -185,17 +209,20 @@ export interface FileRoutesById {
   '/admin/analytics': typeof AdminAnalyticsRoute
   '/admin/audit-log': typeof AdminAuditLogRoute
   '/admin/catalog': typeof AdminCatalogRoute
+  '/admin/customers': typeof AdminCustomersRoute
   '/admin/new': typeof AdminNewRoute
   '/admin/orders': typeof AdminOrdersRouteWithChildren
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
-  '/orders/$orderId': typeof OrdersOrderIdRoute
+  '/orders/$orderId': typeof OrdersOrderIdRouteWithChildren
   '/services/$serviceId': typeof ServicesServiceIdRoute
   '/track/$orderCode': typeof TrackOrderCodeRoute
   '/admin/': typeof AdminIndexRoute
   '/orders/': typeof OrdersIndexRoute
   '/services/': typeof ServicesIndexRoute
+  '/track/': typeof TrackIndexRoute
   '/admin/orders/$orderId': typeof AdminOrdersOrderIdRoute
+  '/orders/$orderId/invoice': typeof OrdersOrderIdInvoiceRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -209,6 +236,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/audit-log'
     | '/admin/catalog'
+    | '/admin/customers'
     | '/admin/new'
     | '/admin/orders'
     | '/admin/settings'
@@ -219,7 +247,9 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/orders/'
     | '/services/'
+    | '/track/'
     | '/admin/orders/$orderId'
+    | '/orders/$orderId/invoice'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -230,6 +260,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/audit-log'
     | '/admin/catalog'
+    | '/admin/customers'
     | '/admin/new'
     | '/admin/orders'
     | '/admin/settings'
@@ -240,7 +271,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/orders'
     | '/services'
+    | '/track'
     | '/admin/orders/$orderId'
+    | '/orders/$orderId/invoice'
   id:
     | '__root__'
     | '/'
@@ -252,6 +285,7 @@ export interface FileRouteTypes {
     | '/admin/analytics'
     | '/admin/audit-log'
     | '/admin/catalog'
+    | '/admin/customers'
     | '/admin/new'
     | '/admin/orders'
     | '/admin/settings'
@@ -262,7 +296,9 @@ export interface FileRouteTypes {
     | '/admin/'
     | '/orders/'
     | '/services/'
+    | '/track/'
     | '/admin/orders/$orderId'
+    | '/orders/$orderId/invoice'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -272,11 +308,12 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   PricingRoute: typeof PricingRoute
   RegisterRoute: typeof RegisterRoute
-  OrdersOrderIdRoute: typeof OrdersOrderIdRoute
+  OrdersOrderIdRoute: typeof OrdersOrderIdRouteWithChildren
   ServicesServiceIdRoute: typeof ServicesServiceIdRoute
   TrackOrderCodeRoute: typeof TrackOrderCodeRoute
   OrdersIndexRoute: typeof OrdersIndexRoute
   ServicesIndexRoute: typeof ServicesIndexRoute
+  TrackIndexRoute: typeof TrackIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -351,6 +388,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCatalogRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/customers': {
+      id: '/admin/customers'
+      path: '/customers'
+      fullPath: '/admin/customers'
+      preLoaderRoute: typeof AdminCustomersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/new': {
       id: '/admin/new'
       path: '/new'
@@ -407,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ServicesServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/track/': {
+      id: '/track/'
+      path: '/track'
+      fullPath: '/track/'
+      preLoaderRoute: typeof TrackIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/track/$orderCode': {
       id: '/track/$orderCode'
       path: '/track/$orderCode'
@@ -420,6 +471,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/orders/$orderId'
       preLoaderRoute: typeof AdminOrdersOrderIdRouteImport
       parentRoute: typeof AdminOrdersRoute
+    }
+    '/orders/$orderId/invoice': {
+      id: '/orders/$orderId/invoice'
+      path: '/invoice'
+      fullPath: '/orders/$orderId/invoice'
+      preLoaderRoute: typeof OrdersOrderIdInvoiceRouteImport
+      parentRoute: typeof OrdersOrderIdRoute
     }
   }
 }
@@ -440,6 +498,7 @@ interface AdminRouteChildren {
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   AdminAuditLogRoute: typeof AdminAuditLogRoute
   AdminCatalogRoute: typeof AdminCatalogRoute
+  AdminCustomersRoute: typeof AdminCustomersRoute
   AdminNewRoute: typeof AdminNewRoute
   AdminOrdersRoute: typeof AdminOrdersRouteWithChildren
   AdminSettingsRoute: typeof AdminSettingsRoute
@@ -451,6 +510,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminAnalyticsRoute: AdminAnalyticsRoute,
   AdminAuditLogRoute: AdminAuditLogRoute,
   AdminCatalogRoute: AdminCatalogRoute,
+  AdminCustomersRoute: AdminCustomersRoute,
   AdminNewRoute: AdminNewRoute,
   AdminOrdersRoute: AdminOrdersRouteWithChildren,
   AdminSettingsRoute: AdminSettingsRoute,
@@ -460,6 +520,18 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface OrdersOrderIdRouteChildren {
+  OrdersOrderIdInvoiceRoute: typeof OrdersOrderIdInvoiceRoute
+}
+
+const OrdersOrderIdRouteChildren: OrdersOrderIdRouteChildren = {
+  OrdersOrderIdInvoiceRoute: OrdersOrderIdInvoiceRoute,
+}
+
+const OrdersOrderIdRouteWithChildren = OrdersOrderIdRoute._addFileChildren(
+  OrdersOrderIdRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
@@ -467,11 +539,12 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   PricingRoute: PricingRoute,
   RegisterRoute: RegisterRoute,
-  OrdersOrderIdRoute: OrdersOrderIdRoute,
+  OrdersOrderIdRoute: OrdersOrderIdRouteWithChildren,
   ServicesServiceIdRoute: ServicesServiceIdRoute,
   TrackOrderCodeRoute: TrackOrderCodeRoute,
   OrdersIndexRoute: OrdersIndexRoute,
   ServicesIndexRoute: ServicesIndexRoute,
+  TrackIndexRoute: TrackIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

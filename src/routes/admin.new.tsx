@@ -40,7 +40,7 @@ function AdminNewOrder() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [serviceId, setServiceId] = useState("");
   const [date, setDate] = useState(todayISO());
-  const [slot, setSlot] = useState(TIME_SLOTS[0]);
+  const [slot, setSlot] = useState<string>(TIME_SLOTS[0]);
   const [street, setStreet] = useState("");
   const [area, setArea] = useState("");
   const [pincode, setPincode] = useState("");
@@ -54,6 +54,7 @@ function AdminNewOrder() {
       navigate({
         to: "/admin/orders/$orderId",
         params: { orderId: order.id },
+        search: { status: undefined },
       }),
   });
 

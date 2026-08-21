@@ -1,20 +1,41 @@
 @import "tailwindcss";
 
+/*
+ * Home Shine design system (Tailwind v4 theme tokens)
+ * Brand: premium, trustworthy, fresh. Deep teal = trust/cleanliness,
+ * aqua tints = freshness, amber = the "shine" accent.
+ */
 @theme {
   --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "DM Sans", ui-sans-serif, system-ui, sans-serif;
 
-  --color-background: #f9fafb;
+  /* Brand scale (deep teal) */
+  --color-brand-50: #f0fdfa;
+  --color-brand-100: #ccfbf1;
+  --color-brand-200: #99f6e4;
+  --color-brand-300: #5eead4;
+  --color-brand-400: #2dd4bf;
+  --color-brand-500: #14b8a6;
+  --color-brand-600: #0d9488;
+  --color-brand-700: #0f766e;
+  --color-brand-800: #115e59;
+  --color-brand-900: #134e4a;
+  --color-brand-950: #042f2e;
+
+  /* Semantic aliases (existing components keep working) */
+  --color-background: #f8fafc;
   --color-foreground: #0f172a;
 
-  --color-primary: #0e7490;
+  --color-primary: var(--color-brand-700);
   --color-primary-foreground: #ffffff;
 
-  --color-secondary: #eef2f7;
+  --color-secondary: #f1f5f9;
   --color-secondary-foreground: #0f172a;
 
   --color-accent: #16a34a;
   --color-accent-foreground: #ffffff;
+
+  --color-highlight: #f59e0b;
 
   --color-muted: #f1f5f9;
   --color-muted-foreground: #64748b;
@@ -27,10 +48,88 @@
 
   --color-destructive: #dc2626;
   --color-destructive-foreground: #ffffff;
+
+  --color-whatsapp: #25d366;
+
+  /* Elevation */
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.05);
+  --shadow-lift: 0 10px 30px -12px rgb(15 118 110 / 0.25);
+
+  /* Motion */
+  --animate-fade-up: fade-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-shimmer: shimmer 1.5s infinite;
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
 }
 
 body {
   background: var(--color-background);
   font-family: var(--font-sans);
   color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Respect reduced-motion users */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  background: linear-gradient(
+    110deg,
+    var(--color-muted) 8%,
+    #e9eef5 18%,
+    var(--color-muted) 33%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Consistent focus ring on interactive elements */
+:where(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+}
+
+/* Print: only the invoice area when printing */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+  }
+  .no-print {
+    display: none !important;
+  }
 }

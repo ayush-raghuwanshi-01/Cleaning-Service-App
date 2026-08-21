@@ -27,6 +27,7 @@ export function Header() {
                 ["/services", "Services"],
                 ["/pricing", "Pricing"],
                 ["/help", "Help"],
+                ["/track", "Track"],
               ] as const
             ).map(([to, label]) => (
               <Link

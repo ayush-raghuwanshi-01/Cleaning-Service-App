@@ -5,6 +5,8 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 
 import { routeTree } from "./routeTree.gen";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { ErrorBoundary } from "./components/ErrorBoundary";
+import { ToastProvider } from "./components/ui/Toast";
 import "./index.css";
 
 const queryClient = new QueryClient({
@@ -41,10 +43,14 @@ const rootElement = document.getElementById("root")!;
 
 createRoot(rootElement).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RouterBridge />
-      </AuthProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ToastProvider>
+          <AuthProvider>
+            <RouterBridge />
+          </AuthProvider>
+        </ToastProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
