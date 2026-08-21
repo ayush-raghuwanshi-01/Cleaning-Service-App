@@ -143,8 +143,9 @@ export function createService(payload: ServicePayload): Promise<Service> {
 
 export function updateService(
   id: string,
-  payload: ServicePayload,
+  payload: Partial<ServicePayload>,
 ): Promise<Service> {
+  // PATCH semantics — only sent fields are applied on the backend.
   return api.patch<Service>(`/api/v1/admin/services/${id}`, payload);
 }
 
@@ -282,4 +283,27 @@ export function fetchRevenueSummary(
   return api.get(
     `/api/v1/admin/reports/revenue-summary?start_date=${startDate}&end_date=${endDate}`,
   );
+}
+// --- Customer management (Phase 7: Customer Management) ---
+
+export interface AdminCustomer {
+  id: string;
+  full_name: string;
+  phone: string;
+  email: string | null;
+  is_active: boolean;
+  created_at: string;
+  total_orders: number;
+  completed_orders: number;
+  total_spend: number;
+  last_order_at: string | null;
+}
+
+export function fetchAdminCustomers(search = ""): Promise<AdminCustomer[]> {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : "";
+  return api.get<AdminCustomer[]>(`/api/v1/admin/customers${qs}`);
+}
+
+export function setCustomerActive(id: string, isActive: boolean): Promise<unknown> {
+  return api.patch(`/api/v1/admin/customers/${id}`, { is_active: isActive });
 }

@@ -35,52 +35,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // Keep tokens fresh every 10 minutes
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // `loading` starts true only when a token exists, so the no-token path never
+  // needs a synchronous setState inside the mount effect.
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(() => Boolean(getAccessToken()));
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Restore the session from the stored token on first load.
-  useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-    restoreSession();
-  }, []);
-
-  // Periodic token refresh so the access token never goes stale mid-session.
-  // (api.ts also auto-refreshes on any 401, so this is a belt-and-braces
-  // measure that keeps requests from ever hitting a 401 in the first place.)
-  useEffect(() => {
-    if (user) {
-      refreshTimer.current = setInterval(() => {
-        attemptTokenRefresh().catch(() => {
-          // Silent fail — api.ts will refresh on the next 401 anyway.
-        });
-      }, REFRESH_INTERVAL_MS);
-    }
-    return () => {
-      if (refreshTimer.current) clearInterval(refreshTimer.current);
-    };
-  }, [user]);
-
-  /**
-   * Restore the session. `api.get("/auth/me")` already auto-refreshes the
-   * access token once on 401 (see api.ts), so no manual refresh is needed
-   * here — doing it twice would rotate/revoke the refresh token prematurely.
-   */
-  async function restoreSession() {
-    try {
-      const me = await api.get<User>("/api/v1/auth/me");
-      setUser(me);
-    } catch {
-      // Token could not be restored or refreshed — require a fresh login.
-      clearTokens();
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function attemptTokenRefresh(): Promise<void> {
     const refreshToken = getRefreshToken();
@@ -95,10 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRefreshToken(res.refresh_token);
   }
 
-  async function login(
-    identifier: string,
-    password: string,
-  ): Promise<User> {
+  async function login(identifier: string, password: string): Promise<User> {
     const res = await api.post<{
       access_token: string;
       refresh_token: string;
@@ -120,9 +76,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Best-effort revocation of the refresh token (ignore failures — tokens
+    // are cleared locally regardless).
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      api.post("/api/v1/auth/logout", { refresh_token: refreshToken }).catch(() => {});
+    }
     clearTokens();
     setUser(null);
   }
+
+  // Restore the session from the stored token on first load.
+  // `api.get("/auth/me")` auto-refreshes the access token once on 401.
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const me = await api.get<User>("/api/v1/auth/me");
+        if (!cancelled) setUser(me);
+      } catch {
+        clearTokens();
+        if (!cancelled) setUser(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Periodic token refresh so the access token never goes stale mid-session.
+  useEffect(() => {
+    if (!user) return;
+    refreshTimer.current = setInterval(() => {
+      attemptTokenRefresh().catch(() => {
+        // Silent fail — api.ts will refresh on the next 401 anyway.
+      });
+    }, REFRESH_INTERVAL_MS);
+    return () => {
+      if (refreshTimer.current) clearInterval(refreshTimer.current);
+    };
+  }, [user]);
 
   const isAuthenticated = Boolean(user);
   const isAdmin = Boolean(

@@ -70,11 +70,21 @@ function AdminCatalog() {
 }
 
 function ServicesManager() {
+  const qc = useQueryClient();
   const { data: services = [], isLoading } = useQuery({
     queryKey: ["admin-services"],
     queryFn: fetchAdminServices,
   });
   const [editing, setEditing] = useState<Service | "new" | null>(null);
+
+  const toggleMutation = useMutation({
+    mutationFn: (service: Service) =>
+      updateService(service.id, { is_active: !service.is_active }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin-services"] });
+      qc.invalidateQueries({ queryKey: ["services"] });
+    },
+  });
 
   return (
     <div className="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_28rem]">
@@ -93,10 +103,18 @@ function ServicesManager() {
           ) : (
             <div className="space-y-3">
               {services.map((service) => (
-                <button
+                <div
                   key={service.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditing(service)}
-                  className="w-full rounded-xl border border-border p-4 text-left transition hover:border-primary/60"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setEditing(service);
+                    }
+                  }}
+                  className="w-full cursor-pointer rounded-xl border border-border p-4 text-left transition hover:border-primary/60"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -106,11 +124,28 @@ function ServicesManager() {
                       </p>
                       {service.blurb && <p className="mt-2 text-sm text-muted-foreground">{service.blurb}</p>}
                     </div>
-                    <span className="shrink-0 text-sm font-extrabold text-primary">
-                      {service.price_max ? `${inr(service.base_price)}–${inr(service.price_max)}` : inr(service.base_price)}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <span className="text-sm font-extrabold text-primary">
+                        {service.price_max ? `${inr(service.base_price)}–${inr(service.price_max)}` : inr(service.base_price)}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleMutation.mutate(service);
+                        }}
+                        disabled={toggleMutation.isPending}
+                        className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                          service.is_active
+                            ? "bg-accent/10 text-accent hover:bg-accent/20"
+                            : "bg-secondary text-muted-foreground hover:bg-border"
+                        }`}
+                        title={service.is_active ? "Hide from customers" : "Show to customers"}
+                      >
+                        {service.is_active ? "● Live" : "○ Hidden"}
+                      </button>
+                    </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}

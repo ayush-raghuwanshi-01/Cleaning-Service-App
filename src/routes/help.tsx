@@ -2,9 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Phone, MessageCircle, Mail } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { BUSINESS_EMAIL, SUPPORT_PHONE, WHATSAPP_NUMBER, formatPhone } from "@/lib/config";
+import { BRAND_NAME, BUSINESS_EMAIL, SUPPORT_PHONE, WHATSAPP_NUMBER, formatPhone } from "@/lib/config";
 
 export const Route = createFileRoute("/help")({
+  head: () => ({
+    meta: [
+      { title: `Help & FAQs — ${BRAND_NAME} Bhopal` },
+      {
+        name: "description",
+        content: "How booking, pricing, payments and service areas work for Home Shine cleaning services in Bhopal.",
+      },
+    ],
+  }),
   component: HelpPage,
 });
 

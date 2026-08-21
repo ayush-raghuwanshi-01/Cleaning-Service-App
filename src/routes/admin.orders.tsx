@@ -78,6 +78,7 @@ function AdminOrders() {
                 key={o.id}
                 to="/admin/orders/$orderId"
                 params={{ orderId: o.id }}
+                search={{ status: undefined }}
               >
                 <Card className="flex items-center justify-between gap-4 p-4 transition hover:border-primary/60">
                   <div>

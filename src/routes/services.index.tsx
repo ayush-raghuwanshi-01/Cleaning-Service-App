@@ -5,8 +5,18 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Card } from "@/components/ui";
 import { fetchServices } from "@/lib/services-api";
 import { inr, durationLabel } from "@/lib/format";
+import { BRAND_CITY, BRAND_NAME } from "@/lib/config";
 
 export const Route = createFileRoute("/services/")({
+  head: () => ({
+    meta: [
+      { title: `Cleaning Services in ${BRAND_CITY} — ${BRAND_NAME}` },
+      {
+        name: "description",
+        content: `Browse home cleaning, deep cleaning, housekeeping and car wash services in ${BRAND_CITY} with transparent starting prices.`,
+      },
+    ],
+  }),
   component: ServicesPage,
 });
 

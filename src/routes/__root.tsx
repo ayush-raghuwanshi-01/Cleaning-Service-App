@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { BRAND_CITY, BRAND_NAME } from "@/lib/config";
 import { Outlet, Link, createRootRouteWithContext } from "@tanstack/react-router";
 
@@ -24,12 +24,24 @@ export const Route = createRootRouteWithContext<{
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: `${BRAND_NAME} — Home Cleaning${BRAND_CITY ? ` in ${BRAND_CITY}` : ""}` },
+      { title: `${BRAND_NAME} — Home Cleaning in ${BRAND_CITY} | Book in 2 Minutes` },
       {
         name: "description",
         content:
-          `Book home cleaning services${BRAND_CITY ? ` in ${BRAND_CITY}` : ""}. Browse services, request a slot and track your order online.`,
+          `${BRAND_NAME} provides home cleaning, housekeeping, car wash and doorstep cleaning across ${BRAND_CITY}. ` +
+          "Verified in-house staff, transparent pricing, pay after service. Book online in 2 minutes.",
       },
+      { name: "theme-color", content: "#0f766e" },
+      // Social sharing (Open Graph)
+      { property: "og:type", content: "website" },
+      { property: "og:site_name", content: BRAND_NAME },
+      { property: "og:title", content: `${BRAND_NAME} — Home Cleaning in ${BRAND_CITY}` },
+      {
+        property: "og:description",
+        content: "Home cleaning, housekeeping & car wash in Bhopal. Verified staff, clear prices, book in 2 minutes.",
+      },
+      { property: "og:image", content: "/favicon.svg" },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
