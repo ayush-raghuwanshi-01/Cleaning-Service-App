@@ -4,6 +4,7 @@ import { ArrowRight, Clock } from "lucide-react";
 import { fetchServices } from "@/lib/services-api";
 import { inr, durationLabel } from "@/lib/format";
 import { serviceImage } from "@/lib/service-images";
+import { BRAND_CITY } from "@/lib/config";
 import { ServiceGridSkeleton } from "@/components/ui/Skeleton";
 
 export function ServiceStrip() {
@@ -22,7 +23,7 @@ export function ServiceStrip() {
             Our services
           </p>
           <h2 className="mt-2 font-display text-2xl font-bold md:text-3xl">
-            Popular in {`Bhopal`}
+            Popular in {BRAND_CITY}
           </h2>
         </div>
         <Link
