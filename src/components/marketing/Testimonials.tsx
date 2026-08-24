@@ -32,7 +32,7 @@ export function Testimonials() {
     <section className="border-y border-border bg-secondary/50 py-14">
       <div className="mx-auto max-w-6xl px-4">
         <div className="max-w-2xl">
-          <p className="text-xs font-bold uppercase tracking-widest text-primary">
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-600">
             Customer stories
           </p>
           <h2 className="mt-2 font-display text-2xl font-bold md:text-3xl">
@@ -44,20 +44,25 @@ export function Testimonials() {
           {TESTIMONIALS.map((t) => (
             <figure
               key={t.name}
-              className="flex h-full flex-col rounded-2xl border border-border bg-card p-6"
+              className="card-hover flex h-full flex-col rounded-2xl border border-brand-100 bg-white p-6"
             >
-              <Quote className="h-6 w-6 text-brand-200" />
-              <blockquote className="mt-3 flex-1 text-sm leading-relaxed text-foreground/85">
+              <Quote className="h-6 w-6 text-brand-300" />
+              <blockquote className="mt-3 flex-1 text-sm leading-relaxed text-ink-700">
                 “{t.text}”
               </blockquote>
-              <figcaption className="mt-5 flex items-center justify-between border-t border-border pt-4">
-                <div>
-                  <p className="text-sm font-bold">{t.name}</p>
-                  <p className="text-xs text-muted-foreground">{t.area}, {BRAND_CITY}</p>
+              <figcaption className="mt-5 flex items-center justify-between border-t border-brand-100 pt-4">
+                <div className="flex items-center gap-3">
+                  <span className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-brand-400 to-brand-600 text-sm font-bold text-white shadow-md">
+                    {t.name.charAt(0)}
+                  </span>
+                  <div>
+                    <p className="text-sm font-bold text-ink-900">{t.name}</p>
+                    <p className="text-xs text-ink-500">{t.area}, {BRAND_CITY}</p>
+                  </div>
                 </div>
                 <span className="flex gap-0.5" aria-label={`${t.rating} out of 5 stars`}>
                   {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} className="h-3.5 w-3.5 fill-highlight text-highlight" />
+                    <Star key={i} className="h-3.5 w-3.5 fill-sun-500 text-sun-500" />
                   ))}
                 </span>
               </figcaption>
