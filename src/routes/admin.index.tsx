@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { fetchDayStats, fetchDashboardAlerts } from "@/lib/admin-api";
+import { fetchDayStats, fetchDashboardAlerts, fetchStaff } from "@/lib/admin-api";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  ErrorState,
+  Skeleton,
 } from "@/components/ui";
 import { inr } from "@/lib/format";
 import {
@@ -24,11 +26,41 @@ export const Route = createFileRoute("/admin/")({
 
 const PIPELINE_STEPS = [
   { key: "requested", label: "Requested", color: "bg-amber-100 text-amber-700" },
-  { key: "contacted", label: "Contacted", color: "bg-blue-100 text-blue-700" },
+  { key: "contacted", label: "Contacted", color: "bg-sky-100 text-sky-700" },
   { key: "confirmed", label: "Confirmed", color: "bg-indigo-100 text-indigo-700" },
-  { key: "in_progress", label: "In Progress", color: "bg-purple-100 text-purple-700" },
-  { key: "completed", label: "Completed", color: "bg-green-100 text-green-700" },
+  { key: "in_progress", label: "In Progress", color: "bg-violet-100 text-violet-700" },
+  { key: "completed", label: "Completed", color: "bg-emerald-100 text-emerald-700" },
 ];
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  loading,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Clock;
+  loading?: boolean;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
+        <CardTitle className="text-sm font-semibold text-muted-foreground">
+          {label}
+        </CardTitle>
+        <Icon className="h-4 w-4 text-muted-foreground" />
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-8 w-16" />
+        ) : (
+          <p className="font-display text-2xl font-extrabold">{value}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useQuery({
@@ -36,31 +68,42 @@ function AdminDashboard() {
     queryFn: () => fetchDayStats(),
   });
 
-  const { data: alerts, isLoading: alertsLoading } = useQuery({
+  const { data: alerts, isLoading: alertsLoading, error: alertsError, refetch: refetchAlerts } = useQuery({
     queryKey: ["dashboard-alerts"],
     queryFn: fetchDashboardAlerts,
   });
+
+  const { data: staff, isLoading: staffLoading } = useQuery({
+    queryKey: ["admin-staff"],
+    queryFn: fetchStaff,
+  });
+
+  const activeStaff = (staff ?? []).filter((s) => s.status === "active").length;
 
   const todayStats = [
     {
       label: "Orders today",
       value: stats ? String(stats.orders) : "—",
       icon: Clock,
+      loading: statsLoading,
     },
     {
       label: "Completed",
       value: stats ? String(stats.completed_orders) : "—",
       icon: CheckCircle2,
+      loading: statsLoading,
     },
     {
       label: "Revenue",
       value: stats ? inr(stats.revenue) : "—",
       icon: DollarSign,
+      loading: statsLoading,
     },
     {
-      label: "Staff",
-      value: "—",
+      label: "Active staff",
+      value: staff ? String(activeStaff) : "—",
       icon: Users,
+      loading: staffLoading,
     },
   ];
 
@@ -129,20 +172,8 @@ function AdminDashboard() {
 
       {/* Today's Stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {todayStats.map(({ label, value, icon: Icon }) => (
-          <Card key={label}>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-semibold text-muted-foreground">
-                {label}
-              </CardTitle>
-              <Icon className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <p className="font-display text-2xl font-extrabold">
-                {value}
-              </p>
-            </CardContent>
-          </Card>
+        {todayStats.map(({ label, value, icon, loading }) => (
+          <StatCard key={label} label={label} value={value} icon={icon} loading={loading} />
         ))}
       </div>
 
@@ -153,7 +184,18 @@ function AdminDashboard() {
         </CardHeader>
         <CardContent>
           {alertsLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+              {PIPELINE_STEPS.map((step) => (
+                <Skeleton key={step.key} className="h-28" />
+              ))}
+            </div>
+          ) : alertsError ? (
+            <ErrorState
+              compact
+              title="Couldn't load the pipeline"
+              error={alertsError}
+              onRetry={() => refetchAlerts()}
+            />
           ) : alerts ? (
             <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
               {PIPELINE_STEPS.map((step) => {
@@ -161,7 +203,7 @@ function AdminDashboard() {
                 return (
                   <div
                     key={step.key}
-                    className="rounded-xl border border-border p-4"
+                    className="rounded-xl border border-border p-4 transition hover:border-primary/40"
                   >
                     <span
                       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${step.color}`}
@@ -174,7 +216,7 @@ function AdminDashboard() {
                     <Link
                       to="/admin/orders"
                       search={{ status: step.key }}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary"
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
                     >
                       View all <ArrowRight className="h-3 w-3" />
                     </Link>
@@ -191,7 +233,9 @@ function AdminDashboard() {
       </Card>
 
       {/* Revenue by Source */}
-      {stats && Object.keys(stats.by_source).length > 0 && (
+      {statsLoading ? (
+        <Skeleton className="mt-6 h-28" />
+      ) : stats && Object.keys(stats.by_source).length > 0 ? (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Orders by Source</CardTitle>
@@ -201,7 +245,7 @@ function AdminDashboard() {
               {Object.entries(stats.by_source).map(([src, count]) => (
                 <span
                   key={src}
-                  className="rounded-full bg-secondary px-3 py-1 text-sm font-semibold"
+                  className="rounded-full bg-secondary px-3 py-1 text-sm font-semibold capitalize"
                 >
                   {src}: {count}
                 </span>
@@ -209,11 +253,7 @@ function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {statsLoading && (
-        <p className="mt-6 text-sm text-muted-foreground">Loading…</p>
-      )}
+      ) : null}
     </div>
   );
 }

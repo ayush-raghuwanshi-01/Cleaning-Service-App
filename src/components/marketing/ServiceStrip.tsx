@@ -6,11 +6,13 @@ import { inr, durationLabel } from "@/lib/format";
 import { serviceImage } from "@/lib/service-images";
 import { BRAND_CITY } from "@/lib/config";
 import { ServiceGridSkeleton } from "@/components/ui/Skeleton";
+import { ErrorState } from "@/components/ui/ErrorState";
 
 export function ServiceStrip() {
-  const { data: services, isLoading } = useQuery({
+  const { data: services, isLoading, error, refetch } = useQuery({
     queryKey: ["services"],
     queryFn: fetchServices,
+    meta: { silent: true },
   });
 
   const featured = (services ?? []).filter((s) => s.is_active).slice(0, 6);
@@ -37,6 +39,12 @@ export function ServiceStrip() {
       <div className="mt-6">
         {isLoading ? (
           <ServiceGridSkeleton count={6} />
+        ) : error ? (
+          <ErrorState
+            title="Couldn't load our services"
+            error={error}
+            onRetry={() => refetch()}
+          />
         ) : featured.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border bg-card p-10 text-center">
             <p className="text-sm font-semibold">Our service menu is being updated</p>
@@ -56,7 +64,7 @@ export function ServiceStrip() {
                 <article className="h-full overflow-hidden rounded-2xl border border-border bg-card transition duration-200 hover:-translate-y-1 hover:border-primary/50 hover:shadow-lift">
                   <div className="h-36 w-full overflow-hidden">
                     <img
-                      src={serviceImage(s.id)}
+                      src={serviceImage(s.id, s.name)}
                       alt={s.name}
                       loading="lazy"
                       decoding="async"

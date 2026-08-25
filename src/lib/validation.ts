@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { todayISO } from "./format";
 
 /**
  * Shared form-validation schemas (zod). Used by the booking widget, auth
@@ -67,6 +68,80 @@ export const bookingAddressSchema = z.object({
 });
 
 export type BookingAddressValues = z.infer<typeof bookingAddressSchema>;
+
+/** Bookings can be placed between today and 90 days out. */
+export const MAX_BOOKING_DAYS_AHEAD = 90;
+
+export function maxBookingDateISO(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + MAX_BOOKING_DAYS_AHEAD);
+  const offsetMs = d.getTimezoneOffset() * 60_000;
+  return new Date(d.getTime() - offsetMs).toISOString().slice(0, 10);
+}
+
+/** Valid booking date: today ≤ date ≤ +90 days, ISO format. */
+export const bookingDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a valid date")
+  .refine((v) => v >= todayISO(), "Pick today or a future date")
+  .refine((v) => v <= maxBookingDateISO(), "Bookings open up to 90 days ahead");
+
+/**
+ * Parse a money string from an <input type="number"> into a safe positive
+ * integer-rupee amount. Returns null when the input isn't a usable amount
+ * (empty, NaN, zero, negative or absurdly large).
+ */
+export function parseAmount(value: string, max = 1_000_000): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const num = Number(trimmed);
+  if (!Number.isFinite(num) || num <= 0 || num > max) return null;
+  return Math.round(num);
+}
+
+/** Positive quantity (≥1) from a string input, else fallback of 1. */
+export function parseQuantity(value: string, max = 20): number {
+  const num = Number(value.trim());
+  if (!Number.isFinite(num) || num < 1) return 1;
+  return Math.min(Math.floor(num), max);
+}
+
+/** Offline (admin) order intake — taken from a call or WhatsApp chat. */
+export const adminOrderSchema = z.object({
+  customer_name: fullNameSchema,
+  customer_phone: phoneSchema,
+  service_id: z.string().min(1, "Choose a service"),
+  scheduled_date: bookingDateSchema,
+  scheduled_slot: z.string().min(1, "Choose a time slot"),
+  street: z.string().trim().min(3, "Enter the house / flat / street").max(255),
+  area: z.string().trim().min(2, "Enter the area / locality").max(120),
+  pincode: pincodeSchema,
+});
+
+export const staffSchema = z.object({
+  full_name: fullNameSchema,
+  phone: phoneSchema,
+  email: z
+    .string()
+    .trim()
+    .email("Enter a valid email address")
+    .optional()
+    .or(z.literal("")),
+  specializations: z.string().trim().max(160).optional(),
+});
+
+export const whatsappSettingsSchema = z.object({
+  support_number: z
+    .string()
+    .trim()
+    .regex(/^\d{10,15}$/, "Enter the number in international digits, e.g. 919876543210"),
+  staff_group_link: z
+    .string()
+    .trim()
+    .url("Paste a full link starting with https://")
+    .optional()
+    .or(z.literal("")),
+});
 
 /** Turn a zod error into a `{ field: message }` map for inline field errors. */
 export function zodFieldErrors(error: z.ZodError): Record<string, string> {

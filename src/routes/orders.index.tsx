@@ -4,9 +4,9 @@ import { CalendarClock, ChevronRight, History } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { fetchMyOrders } from "@/lib/orders-api";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Badge, Button, Card } from "@/components/ui";
+import { Button, Card, ErrorState, StatusBadge } from "@/components/ui";
 import { OrderRowSkeleton } from "@/components/ui/Skeleton";
-import { ORDER_STATUS_LABEL, type OrderSummary } from "@/types";
+import type { OrderSummary } from "@/types";
 import { formatDate, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/orders/")({
@@ -17,15 +17,6 @@ export const Route = createFileRoute("/orders/")({
   },
   component: MyOrdersPage,
 });
-
-const STATUS_BADGE: Record<string, string> = {
-  requested: "bg-amber-100 text-amber-800",
-  contacted: "bg-blue-100 text-blue-800",
-  confirmed: "bg-indigo-100 text-indigo-800",
-  in_progress: "bg-purple-100 text-purple-800",
-  completed: "bg-green-100 text-green-800",
-  cancelled: "bg-red-100 text-red-800",
-};
 
 function OrderCard({ order }: { order: OrderSummary }) {
   return (
@@ -38,9 +29,7 @@ function OrderCard({ order }: { order: OrderSummary }) {
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <Badge className={STATUS_BADGE[order.status] ?? "bg-secondary text-foreground"}>
-            {ORDER_STATUS_LABEL[order.status]}
-          </Badge>
+          <StatusBadge status={order.status} />
           <ChevronRight className="h-4 w-4 text-muted-foreground" />
         </div>
       </Card>
@@ -50,18 +39,22 @@ function OrderCard({ order }: { order: OrderSummary }) {
 
 function MyOrdersPage() {
   const { user, isAuthenticated } = useAuth();
-  const { data: orders, isLoading } = useQuery({
+  const { data: orders, isLoading, error, refetch } = useQuery({
     queryKey: ["my-orders"],
     queryFn: fetchMyOrders,
     enabled: Boolean(user),
+    meta: { silent: true },
   });
 
   const today = todayISO();
-  const active = (orders ?? []).filter(
-    (o) => o.scheduled_date >= today && o.status !== "cancelled" && o.status !== "completed",
+  const activeIds = new Set(
+    (orders ?? [])
+      .filter((o) => o.scheduled_date >= today && o.status !== "cancelled" && o.status !== "completed")
+      .map((o) => o.id),
   );
+  const active = (orders ?? []).filter((o) => activeIds.has(o.id));
   const past = (orders ?? [])
-    .filter((o) => !active.includes(o))
+    .filter((o) => !activeIds.has(o.id))
     .sort((a, b) => (a.scheduled_date < b.scheduled_date ? 1 : -1));
 
   return (
@@ -84,6 +77,13 @@ function MyOrdersPage() {
           <OrderRowSkeleton />
           <OrderRowSkeleton />
         </div>
+      ) : error ? (
+        <ErrorState
+          className="mt-8"
+          title="Couldn't load your bookings"
+          error={error}
+          onRetry={() => refetch()}
+        />
       ) : !isAuthenticated ? null : (orders ?? []).length === 0 ? (
         <div className="mt-10 rounded-2xl border border-dashed border-border bg-card p-12 text-center">
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-brand-50 text-primary">

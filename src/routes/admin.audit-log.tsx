@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { fetchAuditLogs } from "@/lib/admin-api";
-import { Card } from "@/components/ui";
+import { Card, ErrorState, OrderRowSkeleton } from "@/components/ui";
 import { formatDateTime } from "@/lib/format";
 import type { AuditLogEntry } from "@/lib/admin-api";
 
@@ -10,25 +10,32 @@ export const Route = createFileRoute("/admin/audit-log")({
 });
 
 function AdminAuditLog() {
-  const { data: logs = [], isLoading, error } = useQuery({
+  const { data: logs = [], isLoading, error, refetch } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: fetchAuditLogs,
+    meta: { silent: true },
   });
 
   return (
     <div>
       <h1 className="font-display text-2xl font-bold">Audit Log</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Track all actions performed in the system
+        A trail of every action performed in the system — who did what, and when.
       </p>
 
       <div className="mt-6 space-y-2">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
+          <>
+            <OrderRowSkeleton />
+            <OrderRowSkeleton />
+            <OrderRowSkeleton />
+          </>
         ) : error ? (
-          <p className="text-sm text-destructive">
-            Could not load audit logs. Make sure the backend is running.
-          </p>
+          <ErrorState
+            title="Couldn't load the audit log"
+            error={error}
+            onRetry={() => refetch()}
+          />
         ) : logs.length === 0 ? (
           <Card className="p-6 text-sm text-muted-foreground">
             No audit logs recorded yet.

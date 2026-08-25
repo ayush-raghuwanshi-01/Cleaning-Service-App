@@ -30,18 +30,15 @@ function RegisterPage() {
     }
     setErrors({});
     setLoading(true);
+    const normalizedPhone = normalizePhone(parsed.data.phone);
     try {
-      const normalizedPhone = normalizePhone(parsed.data.phone);
       await register({
         full_name: parsed.data.full_name,
         phone: normalizedPhone,
         password: parsed.data.password,
       });
-      // Registration does not issue tokens; log in right after.
-      await login(normalizedPhone, parsed.data.password);
-      toast.success("Account created!", "You're all set — book your first clean.");
-      navigate({ to: "/" , search: { service: undefined, book: true } });
     } catch (err) {
+      // Registration itself failed — surface the server's reason.
       const msg =
         err instanceof ApiError && err.status === 409
           ? "This mobile number is already registered. Try logging in instead."
@@ -49,6 +46,22 @@ function RegisterPage() {
             ? err.message
             : "Registration failed. Please try again.";
       setErrors({ _: msg });
+      setLoading(false);
+      return;
+    }
+
+    // Account exists now. Signing in is a separate step so a hiccup here never
+    // shows a misleading "registration failed" message.
+    try {
+      await login(normalizedPhone, parsed.data.password);
+      toast.success("Account created!", "You're all set — book your first clean.");
+      navigate({ to: "/", search: { service: undefined, book: true } });
+    } catch {
+      toast.info(
+        "Account created — please log in",
+        "We couldn't sign you in automatically. Use the number and password you just set.",
+      );
+      navigate({ to: "/login" });
     } finally {
       setLoading(false);
     }

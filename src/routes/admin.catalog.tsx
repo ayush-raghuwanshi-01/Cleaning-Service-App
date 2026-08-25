@@ -12,8 +12,9 @@ import {
   type ServicePayload,
 } from "@/lib/admin-api";
 import { ApiError } from "@/lib/api";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, Spinner } from "@/components/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, ErrorState, Input, Label, OrderRowSkeleton, Spinner } from "@/components/ui";
 import { durationLabel, inr } from "@/lib/format";
+import { useToast } from "@/components/ui/Toast";
 import type { Service, ServiceArea } from "@/types";
 
 export const Route = createFileRoute("/admin/catalog")({
@@ -71,19 +72,29 @@ function AdminCatalog() {
 
 function ServicesManager() {
   const qc = useQueryClient();
-  const { data: services = [], isLoading } = useQuery({
+  const toast = useToast();
+  const { data: services, isLoading, error, refetch } = useQuery({
     queryKey: ["admin-services"],
     queryFn: fetchAdminServices,
+    meta: { silent: true },
   });
   const [editing, setEditing] = useState<Service | "new" | null>(null);
 
   const toggleMutation = useMutation({
     mutationFn: (service: Service) =>
       updateService(service.id, { is_active: !service.is_active }),
-    onSuccess: () => {
+    onSuccess: (_data, service) => {
+      toast.success(
+        service.is_active ? "Service hidden" : "Service is live",
+        service.is_active
+          ? `${service.name} no longer shows to customers.`
+          : `${service.name} is now bookable on the website.`,
+      );
       qc.invalidateQueries({ queryKey: ["admin-services"] });
       qc.invalidateQueries({ queryKey: ["services"] });
     },
+    onError: (err) => toast.error("Could not update the service", errorMessage(err)),
+    meta: { silent: true },
   });
 
   return (
@@ -97,12 +108,23 @@ function ServicesManager() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <Spinner />
-          ) : services.length === 0 ? (
+            <div className="space-y-3">
+              <OrderRowSkeleton />
+              <OrderRowSkeleton />
+              <OrderRowSkeleton />
+            </div>
+          ) : error ? (
+            <ErrorState
+              compact
+              title="Couldn't load the catalogue"
+              error={error}
+              onRetry={() => refetch()}
+            />
+          ) : (services ?? []).length === 0 ? (
             <p className="text-sm text-muted-foreground">No services yet. Add your first customer-facing service.</p>
           ) : (
             <div className="space-y-3">
-              {services.map((service) => (
+               {(services ?? []).map((service) => (
                 <div
                   key={service.id}
                   role="button"
@@ -159,10 +181,12 @@ function ServicesManager() {
 
 function ServiceForm({ editing, onClose }: { editing: Service | "new" | null; onClose: () => void }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const initial = editing && editing !== "new" ? toServicePayload(editing) : EMPTY_SERVICE;
   const [form, setForm] = useState<ServicePayload>(initial);
   const [includesText, setIncludesText] = useState((initial.includes ?? []).join("\n"));
   const [excludesText, setExcludesText] = useState((initial.excludes ?? []).join("\n"));
+  const [formError, setFormError] = useState<string | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => {
@@ -174,11 +198,34 @@ function ServiceForm({ editing, onClose }: { editing: Service | "new" | null; on
       return editing && editing !== "new" ? updateService(editing.id, payload) : createService(payload);
     },
     onSuccess: () => {
+      toast.success(
+        editing === "new" ? "Service added" : "Service updated",
+        `${form.name || "The service"} is saved${form.is_active ? " and live on the website." : " (hidden from customers)."}`,
+      );
       qc.invalidateQueries({ queryKey: ["admin-services"] });
       qc.invalidateQueries({ queryKey: ["services"] });
       onClose();
     },
+    onError: (err) => {
+      toast.error("Could not save the service", errorMessage(err));
+    },
+    meta: { silent: true },
   });
+
+  /** Client-side sanity checks the backend would bounce anyway. */
+  function validate(): string | null {
+    if (!form.name.trim()) return "Enter a service name.";
+    if (!Number.isFinite(form.duration_minutes) || form.duration_minutes < 15 || form.duration_minutes > 24 * 60)
+      return "Duration must be between 15 minutes and 24 hours.";
+    if (!Number.isFinite(form.base_price) || form.base_price < 0) return "Starting price can't be negative.";
+    if (form.price_max != null && form.price_max < form.base_price)
+      return "Max price must be at least the starting price.";
+    if (form.addon_price_30min != null && form.addon_price_30min < 0) return "+30 min price can't be negative.";
+    if (form.addon_price_60min != null && form.addon_price_60min < 0) return "+60 min price can't be negative.";
+    if (!Number.isFinite(form.overtime_grace_minutes) || form.overtime_grace_minutes < 0)
+      return "Grace minutes can't be negative.";
+    return null;
+  }
 
   if (!editing) {
     return (
@@ -196,6 +243,13 @@ function ServiceForm({ editing, onClose }: { editing: Service | "new" | null; on
           className="space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
+            const problem = validate();
+            if (problem) {
+              setFormError(problem);
+              toast.warning("Check the form", problem);
+              return;
+            }
+            setFormError(null);
             mutation.mutate();
           }}
         >
@@ -269,7 +323,11 @@ function ServiceForm({ editing, onClose }: { editing: Service | "new" | null; on
             <input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} />
             Show this service to customers
           </label>
-          {mutation.isError && <p className="text-sm text-destructive">{errorMessage(mutation.error)}</p>}
+          {formError && (
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {formError}
+            </p>
+          )}
           <div className="flex gap-2">
             <Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? <Spinner /> : "Save"}</Button>
             <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
@@ -282,45 +340,84 @@ function ServiceForm({ editing, onClose }: { editing: Service | "new" | null; on
 
 function AreasManager() {
   const qc = useQueryClient();
-  const { data: areas = [], isLoading } = useQuery({
+  const toast = useToast();
+  const { data: areas, isLoading, error, refetch } = useQuery({
     queryKey: ["admin-service-areas"],
     queryFn: fetchAdminServiceAreas,
+    meta: { silent: true },
   });
   const [name, setName] = useState("");
   const [pincode, setPincode] = useState("");
+  const [areaError, setAreaError] = useState<string | null>(null);
 
   const createMutation = useMutation({
-    mutationFn: () => createServiceArea({ name, pincode, is_active: true }),
+    mutationFn: () => createServiceArea({ name: name.trim(), pincode, is_active: true }),
     onSuccess: () => {
+      toast.success("Service area added", `${name.trim()} (${pincode}) now appears across the app.`);
       setName("");
       setPincode("");
+      setAreaError(null);
       qc.invalidateQueries({ queryKey: ["admin-service-areas"] });
       qc.invalidateQueries({ queryKey: ["service-areas"] });
     },
+    onError: (err) => toast.error("Could not add the area", errorMessage(err)),
+    meta: { silent: true },
   });
+
+  function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (name.trim().length < 2) {
+      setAreaError("Enter the area / locality name.");
+      return;
+    }
+    if (pincode.length !== 6) {
+      setAreaError("Pincode must be exactly 6 digits.");
+      return;
+    }
+    setAreaError(null);
+    createMutation.mutate();
+  }
 
   return (
     <div className="mt-6 grid gap-4 lg:grid-cols-[24rem_minmax(0,1fr)]">
       <Card>
         <CardHeader><CardTitle>Add service area</CardTitle></CardHeader>
         <CardContent>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              createMutation.mutate();
-            }}
-          >
+          <form className="space-y-4" onSubmit={handleCreate} noValidate>
             <div>
-              <Label>Area name</Label>
-              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Area / locality" required />
+              <Label htmlFor="area-name">Area name</Label>
+              <Input
+                id="area-name"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setAreaError(null);
+                }}
+                placeholder="Area / locality"
+                maxLength={120}
+              />
             </div>
             <div>
-              <Label>Pincode</Label>
-              <Input value={pincode} onChange={(e) => setPincode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="454775" required />
+              <Label htmlFor="area-pincode">Pincode</Label>
+              <Input
+                id="area-pincode"
+                inputMode="numeric"
+                value={pincode}
+                onChange={(e) => {
+                  setPincode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setAreaError(null);
+                }}
+                placeholder="462011"
+                maxLength={6}
+              />
             </div>
-            {createMutation.isError && <p className="text-sm text-destructive">{errorMessage(createMutation.error)}</p>}
-            <Button type="submit" disabled={createMutation.isPending || pincode.length !== 6}>{createMutation.isPending ? <Spinner /> : "Add area"}</Button>
+            {areaError && (
+              <p role="alert" className="text-sm text-destructive">{areaError}</p>
+            )}
+            <Button type="submit" disabled={createMutation.isPending}>
+              {createMutation.isPending ? <Spinner className="h-4 w-4" /> : null}
+              Add area
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -328,11 +425,27 @@ function AreasManager() {
       <Card>
         <CardHeader><CardTitle>Service areas</CardTitle></CardHeader>
         <CardContent>
-          {isLoading ? <Spinner /> : areas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No service areas yet.</p>
+          {isLoading ? (
+            <div className="space-y-3">
+              <OrderRowSkeleton />
+              <OrderRowSkeleton />
+              <OrderRowSkeleton />
+            </div>
+          ) : error ? (
+            <ErrorState
+              compact
+              title="Couldn't load service areas"
+              error={error}
+              onRetry={() => refetch()}
+            />
+          ) : (areas ?? []).length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No service areas yet. Add the localities you serve — customers see
+              them while booking.
+            </p>
           ) : (
             <div className="space-y-2">
-              {areas.map((area) => <AreaRow key={area.id} area={area} />)}
+              {(areas ?? []).map((area) => <AreaRow key={area.id} area={area} />)}
             </div>
           )}
         </CardContent>
@@ -343,6 +456,7 @@ function AreasManager() {
 
 function AreaRow({ area }: { area: ServiceArea }) {
   const qc = useQueryClient();
+  const toast = useToast();
   const [draft, setDraft] = useState<ServiceAreaPayload>({
     name: area.name,
     pincode: area.pincode,
@@ -350,29 +464,41 @@ function AreaRow({ area }: { area: ServiceArea }) {
   });
 
   const mutation = useMutation({
-    mutationFn: () => updateServiceArea(area.id, draft),
+    mutationFn: () => updateServiceArea(area.id, { ...draft, name: draft.name.trim() }),
     onSuccess: () => {
+      toast.success("Area saved", `${draft.name} updated.`);
       qc.invalidateQueries({ queryKey: ["admin-service-areas"] });
       qc.invalidateQueries({ queryKey: ["service-areas"] });
     },
+    onError: (err) => toast.error("Could not save the area", errorMessage(err)),
+    meta: { silent: true },
   });
+
+  function save() {
+    if (draft.name.trim().length < 2) {
+      toast.warning("Check the area name", "Enter the area / locality name.");
+      return;
+    }
+    mutation.mutate();
+  }
 
   return (
     <div className="grid gap-2 rounded-xl border border-border p-3 md:grid-cols-[minmax(0,1fr)_8rem_auto_auto] md:items-end">
       <div>
         <Label>Area</Label>
-        <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+        <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} maxLength={120} />
       </div>
       <div>
         <Label>Pincode</Label>
-        <Input value={draft.pincode} onChange={(e) => setDraft({ ...draft, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })} />
+        <Input value={draft.pincode} onChange={(e) => setDraft({ ...draft, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) })} inputMode="numeric" maxLength={6} />
       </div>
       <label className="flex items-center gap-2 pb-2 text-sm font-semibold">
         <input type="checkbox" checked={draft.is_active} onChange={(e) => setDraft({ ...draft, is_active: e.target.checked })} />
         Active
       </label>
-      <Button size="sm" onClick={() => mutation.mutate()} disabled={mutation.isPending || draft.pincode.length !== 6}>{mutation.isPending ? <Spinner /> : "Save"}</Button>
-      {mutation.isError && <p className="text-sm text-destructive md:col-span-4">{errorMessage(mutation.error)}</p>}
+      <Button size="sm" onClick={save} disabled={mutation.isPending || draft.pincode.length !== 6}>
+        {mutation.isPending ? <Spinner className="h-4 w-4" /> : "Save"}
+      </Button>
     </div>
   );
 }
@@ -400,7 +526,9 @@ function lines(value: string): string[] | null {
 }
 
 function optionalNumber(value: string): number | null {
-  return value === "" ? null : Number(value);
+  if (value.trim() === "") return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
 }
 
 function errorMessage(error: unknown): string {

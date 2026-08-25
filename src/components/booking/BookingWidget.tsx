@@ -17,13 +17,14 @@ import { fetchServices, fetchServiceAreas } from "@/lib/services-api";
 import { createOrder } from "@/lib/orders-api";
 import { TIME_SLOTS } from "@/lib/config";
 import { todayISO, inr, durationLabel, formatDate } from "@/lib/format";
-import { Button, Input, Label } from "@/components/ui";
+import { Button, ErrorState, Input, Label } from "@/components/ui";
 import { ServiceGridSkeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { serviceImage } from "@/lib/service-images";
 import {
   bookingAddressSchema,
   isBhopalPincode,
+  maxBookingDateISO,
   zodFieldErrors,
 } from "@/lib/validation";
 import { ApiError } from "@/lib/api";
@@ -42,9 +43,15 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
   const { isAuthenticated } = useAuth();
   const toast = useToast();
 
-  const { data: services, isLoading: servicesLoading } = useQuery({
+  const {
+    data: services,
+    isLoading: servicesLoading,
+    error: servicesError,
+    refetch: refetchServices,
+  } = useQuery({
     queryKey: ["services"],
     queryFn: fetchServices,
+    meta: { silent: true },
   });
   const { data: areas = [] } = useQuery({
     queryKey: ["service-areas"],
@@ -86,6 +93,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
         err instanceof ApiError ? err.message : "Please check your connection and try again.";
       toast.error("Could not place booking", msg);
     },
+    meta: { silent: true },
   });
 
   function validateStep(current: number): boolean {
@@ -200,6 +208,13 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                 <div>
                   {servicesLoading ? (
                     <ServiceGridSkeleton count={6} />
+                  ) : servicesError ? (
+                    <ErrorState
+                      title="Couldn't load our services"
+                      description="We can't reach the service catalogue right now. Retry — or call us and we'll book you in directly."
+                      error={servicesError}
+                      onRetry={() => refetchServices()}
+                    />
                   ) : liveServices.length === 0 ? (
                     <div className="rounded-2xl border border-dashed border-border p-10 text-center">
                       <p className="text-sm font-semibold">No services available right now</p>
@@ -236,7 +251,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                                 >
                                   <div className="relative h-28 w-full overflow-hidden">
                                     <img
-                                      src={serviceImage(s.id)}
+                                      src={serviceImage(s.id, s.name)}
                                       alt=""
                                       loading="lazy"
                                       decoding="async"
@@ -281,6 +296,7 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                       type="date"
                       value={date}
                       min={todayISO()}
+                      max={maxBookingDateISO()}
                       onChange={(e) => {
                         setDate(e.target.value);
                         setErrors((c) => ({ ...c, date: "" }));
@@ -420,11 +436,13 @@ export function BookingWidget({ preselectServiceId }: { preselectServiceId?: str
                     </h3>
                     <div className="mt-4 space-y-3 text-sm">
                       <div className="flex items-start gap-3">
-                        <img
-                          src={service ? serviceImage(service.id) : ""}
-                          alt=""
-                          className="h-10 w-10 rounded-lg object-cover"
-                        />
+                        {service && (
+                          <img
+                            src={serviceImage(service.id, service.name)}
+                            alt=""
+                            className="h-10 w-10 rounded-lg object-cover"
+                          />
+                        )}
                         <div>
                           <p className="font-bold">{service?.name ?? "—"}</p>
                           <p className="text-xs text-muted-foreground">

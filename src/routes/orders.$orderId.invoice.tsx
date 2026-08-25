@@ -6,7 +6,7 @@ import { fetchOrder } from "@/lib/orders-api";
 import { ORDER_STATUS_LABEL } from "@/types";
 import { formatDate } from "@/lib/format";
 import { BRAND_CITY, BRAND_NAME, BUSINESS_EMAIL, SUPPORT_PHONE, formatPhone } from "@/lib/config";
-import { PageLoader } from "@/components/ui";
+import { ErrorState, PageLoader } from "@/components/ui";
 
 export const Route = createFileRoute("/orders/$orderId/invoice")({
   beforeLoad: ({ context }) => {
@@ -19,14 +19,41 @@ export const Route = createFileRoute("/orders/$orderId/invoice")({
 function InvoicePage() {
   const { orderId } = Route.useParams();
   const { user } = useAuth();
-  const { data: order, isLoading } = useQuery({
+  const { data: order, isLoading, error, refetch } = useQuery({
     queryKey: ["order", orderId],
     queryFn: () => fetchOrder(orderId),
     enabled: Boolean(user),
+    meta: { silent: true },
   });
 
   if (isLoading) return <PageLoader />;
-  if (!order) return <p className="p-10 text-center text-muted-foreground">Order not found.</p>;
+  if (error) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-secondary/60 p-6">
+        <ErrorState
+          title="Couldn't load this receipt"
+          error={error}
+          onRetry={() => refetch()}
+          className="max-w-md bg-white"
+        />
+      </div>
+    );
+  }
+  if (!order) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-secondary/60 p-6 text-center">
+        <div>
+          <p className="text-lg font-bold">Receipt unavailable</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            This booking can't be found for your account.
+          </p>
+          <Link to="/orders" className="mt-4 inline-block text-sm font-semibold text-primary hover:underline">
+            Back to my bookings
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const addonsTotal = order.addons.reduce((sum, a) => sum + a.price * a.quantity, 0);
   const paid = order.payments

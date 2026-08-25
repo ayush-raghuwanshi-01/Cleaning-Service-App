@@ -2,8 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Clock, X } from "lucide-react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { PageLoader } from "@/components/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, ErrorState } from "@/components/ui";
+import { ServiceCardSkeleton } from "@/components/ui";
 import { fetchServices } from "@/lib/services-api";
 import { inr, durationLabel } from "@/lib/format";
 
@@ -19,18 +19,50 @@ const DEFAULT_EXCLUSIONS = [
 
 function ServiceDetailPage() {
   const { serviceId } = Route.useParams();
-  const { data: services = [], isLoading } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
-  const service = services.find((s) => s.id === serviceId);
+  const { data: services, isLoading, error, refetch } = useQuery({
+    queryKey: ["services"],
+    queryFn: fetchServices,
+    meta: { silent: true },
+  });
+  const service = (services ?? []).find((s) => s.id === serviceId);
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="h-4 w-24 animate-pulse rounded bg-secondary" />
+        <div className="mt-4 h-10 w-80 max-w-full animate-pulse rounded-lg bg-secondary" />
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          <ServiceCardSkeleton />
+          <ServiceCardSkeleton />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <h1 className="font-display text-3xl font-extrabold md:text-4xl">Service details</h1>
+        <ErrorState
+          className="mt-8"
+          title="Couldn't load this service"
+          error={error}
+          onRetry={() => refetch()}
+        />
+      </AppLayout>
+    );
+  }
 
   if (!service) {
     return (
       <AppLayout>
         <div className="py-16 text-center">
           <h1 className="text-2xl font-bold">Service not found</h1>
-          <Link to="/services" className="mt-4 inline-block text-sm font-bold text-primary">
-            Browse all services
+          <p className="mt-2 text-sm text-muted-foreground">
+            This service may have been renamed or removed from our catalogue.
+          </p>
+          <Link to="/services" className="mt-4 inline-block">
+            <Button variant="outline">Browse all services</Button>
           </Link>
         </div>
       </AppLayout>
@@ -59,13 +91,19 @@ function ServiceDetailPage() {
         <Card>
           <CardHeader><CardTitle>What's included</CardTitle></CardHeader>
           <CardContent>
-            <ul className="space-y-2">
-              {(service.includes ?? []).map((i) => (
-                <li key={i} className="flex gap-2 text-sm text-foreground/85">
-                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" /> {i}
-                </li>
-              ))}
-            </ul>
+            {(service.includes ?? []).length > 0 ? (
+              <ul className="space-y-2">
+                {(service.includes ?? []).map((i) => (
+                  <li key={i} className="flex gap-2 text-sm text-foreground/85">
+                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent" /> {i}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                We'll walk you through the exact scope on a quick call before the work starts.
+              </p>
+            )}
           </CardContent>
         </Card>
         <Card>

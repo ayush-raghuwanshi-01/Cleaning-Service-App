@@ -31,7 +31,7 @@ export const Route = createRootRouteWithContext<{
           `${BRAND_NAME} provides home cleaning, housekeeping, car wash and doorstep cleaning across ${BRAND_CITY}. ` +
           "Verified in-house staff, transparent pricing, pay after service. Book online in 2 minutes.",
       },
-      { name: "theme-color", content: "#0f766e" },
+      { name: "theme-color", content: "#2576eb" },
       // Social sharing (Open Graph)
       { property: "og:type", content: "website" },
       { property: "og:site_name", content: BRAND_NAME },
@@ -44,12 +44,9 @@ export const Route = createRootRouteWithContext<{
       { name: "twitter:card", content: "summary" },
     ],
     links: [
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&family=DM+Sans:wght@400;500;700&display=swap",
-      },
+      // Typography (Inter body / Plus Jakarta Sans display) and the icon are
+      // also linked from index.html so they load before hydration; they are
+      // listed here for full-URL renders (e.g. prerenders).
       { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
     ],
   }),

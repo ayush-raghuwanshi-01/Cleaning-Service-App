@@ -2,6 +2,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -17,6 +18,8 @@ interface ToastItem {
   variant: ToastVariant;
   title: string;
   description?: string;
+  /** How long the toast stays visible (ms). Errors stay longer by default. */
+  duration?: number;
 }
 
 interface ToastContextValue {
@@ -52,6 +55,8 @@ const VARIANT_STYLES: Record<
 };
 
 const AUTO_DISMISS_MS = 4500;
+/** Errors need more reading time — and never vanish mid-read. */
+const ERROR_DISMISS_MS = 7000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
@@ -65,10 +70,27 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (t: Omit<ToastItem, "id">) => {
       const id = nextId.current++;
       setToasts((current) => [...current.slice(-3), { ...t, id }]);
-      window.setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+      const duration =
+        t.duration ?? (t.variant === "error" ? ERROR_DISMISS_MS : AUTO_DISMISS_MS);
+      window.setTimeout(() => dismiss(id), duration);
     },
     [dismiss],
   );
+
+  // Global failure notifications (query/mutation caches in main.tsx) arrive as
+  // DOM events so caches don't need a React context reference.
+  useEffect(() => {
+    const onAppError = (e: Event) => {
+      const detail = (e as CustomEvent<{ title?: string; description?: string }>).detail;
+      toast({
+        variant: "error",
+        title: detail?.title ?? "Something went wrong",
+        description: detail?.description,
+      });
+    };
+    window.addEventListener("app:error", onAppError);
+    return () => window.removeEventListener("app:error", onAppError);
+  }, [toast]);
 
   const value = useMemo<ToastContextValue>(
     () => ({

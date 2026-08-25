@@ -4,9 +4,10 @@ import { MapPin, Phone, Printer, ShieldQuestion, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cancelOrder, fetchOrder } from "@/lib/orders-api";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, PageLoader } from "@/components/ui";
+import { Badge, Button, Card, CardContent, CardHeader, CardTitle, ErrorState } from "@/components/ui";
+import { OrderRowSkeleton } from "@/components/ui/Skeleton";
 import { ORDER_STATUS_FLOW, ORDER_STATUS_LABEL } from "@/types";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, inr } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/api";
 import { WHATSAPP_NUMBER } from "@/lib/config";
@@ -23,10 +24,11 @@ function OrderDetailPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const toast = useToast();
-  const { data: order, isLoading } = useQuery({
+  const { data: order, isLoading, error, refetch } = useQuery({
     queryKey: ["order", orderId],
     queryFn: () => fetchOrder(orderId),
     enabled: Boolean(user),
+    meta: { silent: true },
   });
 
   const cancelMutation = useMutation({
@@ -41,13 +43,44 @@ function OrderDetailPage() {
         "Could not cancel",
         err instanceof ApiError ? err.message : "Please call us and we'll help.",
       ),
+    meta: { silent: true },
   });
 
-  if (isLoading) return <PageLoader />;
+  if (isLoading) {
+    return (
+      <AppLayout>
+        <div className="space-y-3">
+          <OrderRowSkeleton />
+          <OrderRowSkeleton />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <AppLayout>
+        <ErrorState
+          title="Couldn't load this booking"
+          error={error}
+          onRetry={() => refetch()}
+        />
+      </AppLayout>
+    );
+  }
+
   if (!order) {
     return (
       <AppLayout>
-        <p className="py-16 text-center text-muted-foreground">Order not found.</p>
+        <div className="py-16 text-center">
+          <p className="text-lg font-bold">Booking not found</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            It may belong to a different account or has been removed.
+          </p>
+          <Link to="/orders" className="mt-4 inline-block">
+            <Button variant="outline">Back to my bookings</Button>
+          </Link>
+        </div>
       </AppLayout>
     );
   }
@@ -122,7 +155,7 @@ function OrderDetailPage() {
             <p className="text-sm text-muted-foreground">{order.payment_summary}</p>
             {order.amount && (
               <p className="mt-1 font-display text-2xl font-extrabold text-primary">
-                ₹{order.amount}
+                {inr(order.amount)}
               </p>
             )}
             <p className="mt-2 text-xs text-muted-foreground">

@@ -3,12 +3,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Ban, Phone, RotateCcw, Search, UserRound } from "lucide-react";
 import { fetchAdminCustomers, setCustomerActive, type AdminCustomer } from "@/lib/admin-api";
-import { Badge, Card, Input } from "@/components/ui";
+import { Badge, Card, ErrorState, Input } from "@/components/ui";
 import { OrderRowSkeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
 import { inr } from "@/lib/format";
 import { useToast } from "@/components/ui/Toast";
 import { ApiError } from "@/lib/api";
+import { telHref, waHref } from "@/lib/contact";
 
 export const Route = createFileRoute("/admin/customers")({
   component: AdminCustomers,
@@ -18,9 +19,10 @@ function AdminCustomers() {
   const [search, setSearch] = useState("");
   const [submitted, setSubmitted] = useState("");
 
-  const { data: customers, isLoading } = useQuery({
+  const { data: customers, isLoading, error, refetch } = useQuery({
     queryKey: ["admin-customers", submitted],
     queryFn: () => fetchAdminCustomers(submitted),
+    meta: { silent: true },
   });
 
   return (
@@ -56,6 +58,12 @@ function AdminCustomers() {
             <OrderRowSkeleton />
             <OrderRowSkeleton />
           </>
+        ) : error ? (
+          <ErrorState
+            title="Couldn't load customers"
+            error={error}
+            onRetry={() => refetch()}
+          />
         ) : (customers ?? []).length === 0 ? (
           <Card className="p-10 text-center text-sm text-muted-foreground">
             {submitted
@@ -87,13 +95,8 @@ function CustomerRow({ customer }: { customer: AdminCustomer }) {
     },
     onError: (err) =>
       toast.error("Action failed", err instanceof ApiError ? err.message : undefined),
+    meta: { silent: true },
   });
-
-  const waNumber = customer.phone.startsWith("91")
-    ? customer.phone
-    : customer.phone.startsWith("+")
-      ? customer.phone.slice(1)
-      : `91${customer.phone}`;
 
   return (
     <Card className="flex flex-wrap items-center justify-between gap-4 p-4">
@@ -126,14 +129,14 @@ function CustomerRow({ customer }: { customer: AdminCustomer }) {
           {inr(customer.total_spend)}
         </span>
         <a
-          href={`tel:+${customer.phone}`}
+          href={telHref(customer.phone)}
           className="grid h-9 w-9 place-items-center rounded-full border border-border text-muted-foreground hover:border-primary hover:text-primary"
           aria-label={`Call ${customer.full_name}`}
         >
           <Phone className="h-4 w-4" />
         </a>
         <a
-          href={`https://wa.me/${waNumber}`}
+          href={waHref(customer.phone, `Hi ${customer.full_name}, `)}
           target="_blank"
           rel="noopener noreferrer"
           className="grid h-9 w-9 place-items-center rounded-full border border-border text-muted-foreground hover:border-whatsapp hover:text-whatsapp"

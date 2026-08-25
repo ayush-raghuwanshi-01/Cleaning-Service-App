@@ -12,6 +12,7 @@ import {
   UserCog,
   BarChart3,
   ClipboardList,
+  Boxes,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { BRAND_NAME } from "@/lib/config";
@@ -21,7 +22,7 @@ const NAV = [
   { to: "/admin/orders", label: "Orders", icon: ListOrdered },
   { to: "/admin/customers", label: "Customers", icon: Users },
   { to: "/admin/new", label: "Add order", icon: PlusCircle },
-  { to: "/admin/catalog", label: "Catalog", icon: Settings },
+  { to: "/admin/catalog", label: "Catalog", icon: Boxes },
   { to: "/admin/staff", label: "Staff", icon: UserCog },
   { to: "/admin/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/admin/audit-log", label: "Audit Log", icon: ClipboardList },
@@ -61,10 +62,11 @@ export function AdminLayout() {
             </div>
           </div>
           <button
-            className="lg:hidden"
+            className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground transition hover:bg-secondary hover:text-foreground lg:hidden"
             onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
           >
-            <X className="h-5 w-5 text-muted-foreground" />
+            <X className="h-5 w-5" />
           </button>
         </div>
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
@@ -85,9 +87,9 @@ export function AdminLayout() {
           </p>
           <button
             onClick={logout}
-            className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-muted-foreground hover:bg-secondary hover:text-foreground"
+            className="mt-2 w-full rounded-lg px-3 py-2 text-left text-sm font-semibold text-muted-foreground transition hover:bg-red-50 hover:text-red-600"
           >
-            Log out
+            Log out{user?.full_name ? ` (${user.full_name.split(" ")[0]})` : ""}
           </button>
         </div>
       </aside>
@@ -96,10 +98,14 @@ export function AdminLayout() {
       <main className="flex-1 overflow-auto">
         {/* Mobile header */}
         <div className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-background p-4 lg:hidden">
-          <button onClick={() => setSidebarOpen(true)}>
-            <Menu className="h-5 w-5 text-foreground" />
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-foreground transition hover:bg-secondary active:scale-95"
+          >
+            <Menu className="h-5 w-5" />
           </button>
-          <span className="text-sm font-bold">{BRAND_NAME}</span>
+          <span className="text-sm font-bold">{BRAND_NAME} Admin</span>
         </div>
 
         <div className="p-4 lg:p-6">

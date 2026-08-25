@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BadgeCheck, CheckCircle2, MessageCircle, Sparkles, Star } from "lucide-react";
 import { BRAND_CITY, WHATSAPP_NUMBER } from "@/lib/config";
 import { fetchServices } from "@/lib/services-api";
+import { fetchServiceAreas } from "@/lib/services-api";
 import { inr } from "@/lib/format";
 import heroMain from "@/assets/hero-cleaner.jpg";
 import heroTeam from "@/assets/hero-team.jpg";
@@ -24,10 +25,12 @@ const AVATAR_STYLES = [
 
 export function Hero() {
   const { data: services } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
+  const { data: areas } = useQuery({ queryKey: ["service-areas"], queryFn: fetchServiceAreas });
   const startingPrice = (services ?? [])
     .filter((s) => s.is_active)
     .reduce((min, s) => Math.min(min, Number(s.base_price)), Infinity);
-  const price = Number.isFinite(startingPrice) ? startingPrice : 399;
+  const price = Number.isFinite(startingPrice) ? startingPrice : 299;
+  const localityCount = (areas ?? []).filter((a) => a.is_active).length;
 
   return (
     <section id="hero" className="relative overflow-hidden pt-8 pb-20">
@@ -45,7 +48,8 @@ export function Hero() {
                 <span className="animate-pulse-ring absolute inline-flex h-full w-full rounded-full bg-fresh-500 opacity-75" />
                 <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-fresh-500" />
               </span>
-              Now serving all of {BRAND_CITY} · 9+ localities
+              Now serving all of {BRAND_CITY}
+              {localityCount > 0 ? ` · ${localityCount}+ localities` : ""}
             </div>
 <div className="relative">
   <Sparkles
@@ -53,19 +57,19 @@ export function Hero() {
     className="absolute -top-5 -left-8 h-7 w-7 text-sun-400"
   />
   <h1 className="font-display text-4xl leading-[1.2] font-extrabold tracking-tight text-ink-900 sm:text-5xl lg:text-[3.4rem]">
-    
+
     <span className="relative inline-block  rounded-xl bg-fresh-100 px-2.5 py-0.5">Your Home Cleaning
     </span>
     <br />
-    <span className="text-2xl font-bold text-ink-600 sm:text-3xl lg:text-4xl">
-      by <span className="font-extrabold text-blue-500">Home Shine</span> is just
+    <span className="text-2xl font-bold text-ink-700 sm:text-3xl lg:text-4xl">
+      by <span className="font-extrabold text-brand-600">Home Shine</span> is just
     </span>{" "}
     <span className="relative mt-1 inline-flex flex-col items-center">
       <span className="absolute  left-1/2 z-10 -translate-x-1/2 rounded-full bg-ink-900 px-2.5 py-0.5 text-[9px] font-bold tracking-[0.18em] text-white">
         FROM
       </span>
-      <span className="inline-block -rotate-1 rounded-xl bg-yellow-200 px-2 py-0.5 text-ink-900 shadow-lg shadow-sun-500/40 ">
-        {inr(299)}
+      <span className="inline-block -rotate-1 rounded-xl bg-sun-200 px-2 py-0.5 text-ink-900 shadow-lg shadow-sun-500/40 ">
+        {inr(price)}
       </span>
     </span>
   </h1>
@@ -81,7 +85,7 @@ export function Hero() {
                 to="/"
                 search={{ service: undefined, book: true }}
                 hash="book"
-                className="group flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-8 py-4 text-lg font-semibold text-white shadow-xl shadow-fresh-500/30 transition-all hover:scale-[1.02] hover:bg-blue-700 hover:shadow-2xl hover:shadow-fresh-500/40"
+                className="group flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-8 py-4 text-lg font-semibold text-white shadow-xl shadow-brand-600/30 transition-all hover:scale-[1.02] hover:bg-brand-700 hover:shadow-2xl hover:shadow-brand-600/40"
               >
                 Book Cleaning @ {inr(price)}
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-1" />

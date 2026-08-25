@@ -2,13 +2,15 @@ import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { fetchDayStats, fetchRevenueSummary } from "@/lib/admin-api";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui";
-import { inr } from "@/lib/format";
-import { todayISO } from "@/lib/format";
+import { Card, CardContent, CardHeader, CardTitle, ErrorState, Skeleton } from "@/components/ui";
+import { formatDate, inr, todayISO } from "@/lib/format";
 
 export const Route = createFileRoute("/admin/analytics")({
   component: AdminAnalytics,
 });
+
+/** Widest report window we'll query in one go — keeps payloads sane. */
+const MAX_RANGE_DAYS = 365;
 
 function AdminAnalytics() {
   const today = todayISO();
@@ -17,15 +19,19 @@ function AdminAnalytics() {
   const [startDate, setStartDate] = useState(weekAgo);
   const [endDate, setEndDate] = useState(today);
 
-  const { data: stats } = useQuery({
+  const rangeInvalid =
+    !startDate || !endDate || startDate > endDate || daysBetween(startDate, endDate) > MAX_RANGE_DAYS;
+
+  const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["admin-stats"],
     queryFn: () => fetchDayStats(),
   });
 
-  const { data: revenueData, isLoading: revenueLoading } = useQuery({
+  const { data: revenueData, isLoading: revenueLoading, error: revenueError, refetch } = useQuery({
     queryKey: ["revenue-summary", startDate, endDate],
     queryFn: () => fetchRevenueSummary(startDate, endDate),
-    enabled: Boolean(startDate && endDate),
+    enabled: Boolean(startDate && endDate) && !rangeInvalid,
+    meta: { silent: true },
   });
 
   const items = [
@@ -56,9 +62,11 @@ function AdminAnalytics() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="font-display text-2xl font-extrabold">
-                {value}
-              </p>
+              {statsLoading ? (
+                <Skeleton className="h-8 w-16" />
+              ) : (
+                <p className="font-display text-2xl font-extrabold">{value}</p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -68,34 +76,58 @@ function AdminAnalytics() {
       <Card className="mt-8">
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <CardTitle>Revenue Trend</CardTitle>
+            <CardTitle>Revenue trend</CardTitle>
             <div className="flex items-center gap-2">
               <input
                 type="date"
+                aria-label="Start date"
                 value={startDate}
+                max={today}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-background px-3 text-xs"
               />
               <span className="text-xs text-muted-foreground">to</span>
               <input
                 type="date"
+                aria-label="End date"
                 value={endDate}
+                max={today}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="h-9 rounded-lg border border-input bg-background px-3 text-xs"
               />
             </div>
           </div>
+          {rangeInvalid && (
+            <p role="alert" className="mt-2 text-xs font-semibold text-destructive">
+              Pick a valid range — start before end, at most {MAX_RANGE_DAYS} days, up to today.
+            </p>
+          )}
         </CardHeader>
         <CardContent>
           {revenueLoading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-6 w-full" />
+              ))}
+            </div>
+          ) : rangeInvalid ? (
+            <p className="text-sm text-muted-foreground">
+              Fix the date range above to load revenue data.
+            </p>
+          ) : revenueError ? (
+            <ErrorState
+              compact
+              title="Couldn't load revenue data"
+              error={revenueError}
+              onRetry={() => refetch()}
+            />
           ) : revenueData ? (
             <div className="space-y-6">
               {/* Summary cards */}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="rounded-xl bg-primary/5 p-4">
                   <p className="text-xs text-muted-foreground">
-                    Total Revenue
+                    Total revenue
                   </p>
                   <p className="mt-1 font-display text-2xl font-extrabold text-primary">
                     {inr(revenueData.total_revenue)}
@@ -103,7 +135,7 @@ function AdminAnalytics() {
                 </div>
                 <div className="rounded-xl bg-accent/5 p-4">
                   <p className="text-xs text-muted-foreground">
-                    Total Orders
+                    Total orders
                   </p>
                   <p className="mt-1 font-display text-2xl font-extrabold text-accent">
                     {revenueData.total_orders}
@@ -120,54 +152,55 @@ function AdminAnalytics() {
               {/* Simple bar chart representation */}
               <div>
                 <p className="mb-3 text-sm font-semibold text-muted-foreground">
-                  Daily Revenue (bars proportional)
+                  Daily revenue ({formatDate(startDate)} – {formatDate(endDate)})
                 </p>
-                <div className="space-y-2">
-                  {revenueData.daily_revenue.map((day) => {
-                    const maxRevenue = Math.max(
-                      ...revenueData.daily_revenue.map(
-                        (d) => d.revenue,
-                      ),
-                      1,
-                    );
-                    const pct = Math.max(
-                      (day.revenue / maxRevenue) * 100,
-                      4,
-                    );
-                    return (
-                      <div key={day.date} className="flex items-center gap-3">
-                        <span className="w-24 shrink-0 text-xs text-muted-foreground">
-                          {day.date}
-                        </span>
-                        <div className="flex flex-1 items-center gap-1">
-                          <div
-                            className="h-6 rounded bg-primary/30 transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                          <span className="text-xs font-semibold">
-                            {inr(day.revenue)}
+                {revenueData.daily_revenue.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No orders in this window — try a wider date range.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {revenueData.daily_revenue.map((day) => {
+                      const maxRevenue = Math.max(
+                        ...revenueData.daily_revenue.map((d) => d.revenue),
+                        1,
+                      );
+                      const pct = Math.max((day.revenue / maxRevenue) * 100, 4);
+                      return (
+                        <div key={day.date} className="flex items-center gap-3">
+                          <span className="w-24 shrink-0 text-xs text-muted-foreground">
+                            {formatDate(day.date)}
+                          </span>
+                          <div className="flex flex-1 items-center gap-1">
+                            <div
+                              className="h-6 rounded bg-primary/30 transition-all"
+                              style={{ width: `${pct}%` }}
+                            />
+                            <span className="text-xs font-semibold">
+                              {inr(day.revenue)}
+                            </span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">
+                            ({day.orders} order{day.orders === 1 ? "" : "s"})
                           </span>
                         </div>
-                        <span className="text-xs text-muted-foreground">
-                          ({day.orders} orders)
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Revenue by source */}
               <div>
                 <p className="mb-2 text-sm font-semibold text-muted-foreground">
-                  By Source
+                  By source
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(revenueData.by_source).map(
                     ([src, count]) => (
                       <span
                         key={src}
-                        className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold"
+                        className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize"
                       >
                         {src}: {count}
                       </span>
@@ -179,27 +212,23 @@ function AdminAnalytics() {
               {/* Revenue by status */}
               <div>
                 <p className="mb-2 text-sm font-semibold text-muted-foreground">
-                  By Status
+                  By status
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {Object.entries(revenueData.by_status).map(
                     ([status, count]) => (
                       <span
                         key={status}
-                        className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold"
+                        className="rounded-full bg-secondary px-3 py-1 text-xs font-semibold capitalize"
                       >
-                        {status}: {count}
+                        {status.replace(/_/g, " ")}: {count}
                       </span>
                     ),
                   )}
                 </div>
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Select a date range to see revenue data.
-            </p>
-          )}
+          ) : null}
         </CardContent>
       </Card>
     </div>
@@ -209,5 +238,11 @@ function AdminAnalytics() {
 function getPastDate(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
+  const offsetMs = d.getTimezoneOffset() * 60_000;
+  return new Date(d.getTime() - offsetMs).toISOString().slice(0, 10);
+}
+
+function daysBetween(from: string, to: string): number {
+  const ms = new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime();
+  return Math.round(ms / 86_400_000);
 }

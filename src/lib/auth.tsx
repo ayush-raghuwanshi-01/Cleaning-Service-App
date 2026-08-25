@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from "react";
 import {
+  ApiError,
   api,
   getAccessToken,
   setAccessToken,
@@ -14,7 +15,10 @@ import {
   setRefreshToken,
   clearTokens,
 } from "./api";
+import { createLogger } from "./logger";
 import type { User } from "@/types";
+
+const log = createLogger("auth");
 
 interface AuthContextValue {
   user: User | null;
@@ -95,9 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const me = await api.get<User>("/api/v1/auth/me");
         if (!cancelled) setUser(me);
-      } catch {
-        clearTokens();
+      } catch (err) {
+        // Only treat *auth* failures as "session is dead". If the backend was
+        // briefly unreachable (offline, timeout, 5xx) we keep the tokens and
+        // simply stay logged out of the UI until a later restore succeeds —
+        // clearing tokens on a network blip would log users out needlessly.
+        const status = err instanceof ApiError ? err.status : -1;
+        if (status === 401 || status === 403) {
+          clearTokens();
+        }
         if (!cancelled) setUser(null);
+        log.warn("session restore failed", err);
       } finally {
         if (!cancelled) setLoading(false);
       }

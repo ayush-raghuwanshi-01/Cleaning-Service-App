@@ -1,6 +1,9 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
 import { BRAND_NAME } from "@/lib/config";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("error-boundary");
 
 interface Props {
   children: ReactNode;
@@ -9,23 +12,28 @@ interface Props {
 interface State {
   hasError: boolean;
   message: string;
+  errorId: string;
 }
 
 /**
  * App-level error boundary. Catches render crashes and shows a branded,
- * friendly error screen instead of a white page. Also logs to the console so
- * error-tracking tools (e.g. Sentry) pick it up.
+ * friendly error screen instead of a white page. Failures are logged with a
+ * short reference id users can quote to support; the raw message is tucked
+ * behind a details toggle instead of being dumped on screen.
  */
 export class ErrorBoundary extends Component<Props, State> {
-  state: State = { hasError: false, message: "" };
+  state: State = { hasError: false, message: "", errorId: "" };
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, message: error.message };
+    return {
+      hasError: true,
+      message: error.message,
+      errorId: Math.random().toString(36).slice(2, 8).toUpperCase(),
+    };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
-    // Wire this into Sentry/other trackers in production.
-    console.error("[ErrorBoundary]", error, info.componentStack);
+    log.error("render crash", { error, componentStack: info.componentStack });
   }
 
   render() {
@@ -48,21 +56,29 @@ export class ErrorBoundary extends Component<Props, State> {
           <div className="mt-6 flex justify-center gap-3">
             <button
               onClick={() => window.location.reload()}
-              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground"
+              className="rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90 active:scale-95"
             >
               Reload page
             </button>
             <a
               href="/"
-              className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold"
+              className="rounded-full border border-border px-5 py-2.5 text-sm font-semibold transition hover:bg-secondary active:scale-95"
             >
               Go to home
             </a>
           </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            Error reference: <span className="font-mono font-semibold">{this.state.errorId}</span>
+          </p>
           {this.state.message && (
-            <p className="mt-4 break-words rounded-lg bg-muted p-2 text-left text-[11px] text-muted-foreground">
-              {this.state.message}
-            </p>
+            <details className="mt-2 text-left">
+              <summary className="cursor-pointer text-xs font-semibold text-muted-foreground">
+                Technical details
+              </summary>
+              <p className="mt-1 break-words rounded-lg bg-muted p-2 text-[11px] text-muted-foreground">
+                {this.state.message}
+              </p>
+            </details>
           )}
         </div>
       </div>
